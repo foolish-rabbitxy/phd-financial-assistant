@@ -11,9 +11,21 @@ def get_all_symbols():
     conn.close()
     return symbols
 
+def is_fundamental_up_to_date(symbol):
+    import sqlite3
+    conn = sqlite3.connect("local_db/market_data.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM fundamentals WHERE symbol=?", (symbol,))
+    exists = c.fetchone()[0] > 0
+    conn.close()
+    return exists
+
 if __name__ == "__main__":
     symbols = get_all_symbols()
     for symbol in symbols:
+        if is_fundamental_up_to_date(symbol):
+            continue  # skip if already present
+        # fetch and store...
         print(f"Fetching fundamentals for {symbol}...")
         try:
             fetch_and_store_fundamentals(symbol)

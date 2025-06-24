@@ -13,9 +13,23 @@ def get_all_symbols():
     # Filter out index symbols (those starting with ^)
     return [s for s in symbols if not s.startswith('^')]
 
+def has_ohlcv_for_today(symbol):
+    import sqlite3
+    from datetime import datetime
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = sqlite3.connect("local_db/market_data.db")
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM ohlcv WHERE symbol=? AND timestamp LIKE ?", (symbol, f"{today}%"))
+    exists = c.fetchone()[0] > 0
+    conn.close()
+    return exists
+
 if __name__ == "__main__":
     symbols = get_all_symbols()
     for symbol in symbols:
+        if has_ohlcv_for_today(symbol):
+            continue  # Skip if up to date
+        # fetch and store bars
         print(f"Fetching OHLCV for {symbol}...")
         try:
             fetch_and_store(symbol, timeframe=TimeFrame.Day, limit=100)

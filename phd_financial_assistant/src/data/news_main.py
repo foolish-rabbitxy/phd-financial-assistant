@@ -3,6 +3,20 @@
 from src.data.news import fetch_news, store_news
 import sqlite3
 import time
+from datetime import datetime
+
+def has_today_news(symbol):
+    import sqlite3
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = sqlite3.connect("local_db/market_data.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COUNT(*) FROM news WHERE symbol=? AND published LIKE ?",
+        (symbol, f"{today}%")
+    )
+    count = cur.fetchone()[0]
+    conn.close()
+    return count > 0
 
 def get_all_symbols():
     conn = sqlite3.connect("local_db/market_data.db")
@@ -16,6 +30,10 @@ def get_all_symbols():
 if __name__ == "__main__":
     symbols = get_all_symbols()
     for symbol in symbols:
+        if has_today_news(symbol):
+            print(f"Skipping {symbol}: already have today's news.")
+            continue
+        # ... fetch and store as before
         print(f"Fetching news for {symbol}...")
         try:
             items = fetch_news(symbol)

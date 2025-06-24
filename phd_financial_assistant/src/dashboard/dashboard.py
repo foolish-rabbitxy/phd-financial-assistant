@@ -120,6 +120,23 @@ with col2:
 # Optionally, add explanations for portfolio performance, Sharpe ratio, etc. in future!
 
 
+from src.strategy.portfolio import get_portfolio_performance
+
+st.subheader("📊 Portfolio Analytics")
+performance = get_portfolio_performance()
+if performance:
+    st.markdown(f"""
+    - **Total Return:** {performance['total_return']}%
+    - **Annualized Volatility:** {performance['annual_volatility']}%
+    - **Sharpe Ratio:** {performance['sharpe_ratio']}
+    - **Start Value:** ${performance['start_value']}
+    - **End Value:** ${performance['end_value']}
+    - **Days Tracked:** {performance['num_days']}
+    """)
+else:
+    st.info("Not enough data to calculate portfolio analytics yet.")
+
+
 if st.button("🔄 Refresh Data"):
     st.session_state.last_refresh = datetime.now()
     st.success("Data refreshed successfully!")

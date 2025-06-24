@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -5,7 +6,43 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import joblib
-import os
+import time
+
+# Ensure the model directory exists
+os.makedirs("model", exist_ok=True) 
+# Ensure the local_db directory exists
+os.makedirs("local_db", exist_ok=True)
+# Ensure the database file exists
+if not os.path.exists("local_db/market_data.db"):
+    # Create an empty database file if it doesn't exist
+    conn = sqlite3.connect("local_db/market_data.db")
+    conn.close()
+    print("Created empty market_data.db in local_db directory.")
+
+# This script trains a stock scoring model using fundamentals and news sentiment data.
+# It assumes the database is already populated with the necessary data.
+
+# Check if the model is current based on the latest data in the database
+def model_is_current(model_path="model/stock_score_model.pkl"):
+    if not os.path.exists(model_path):
+        return False
+    model_mtime = os.path.getmtime(model_path)
+    conn = sqlite3.connect("local_db/market_data.db")
+    cur = conn.cursor()
+    cur.execute("SELECT MAX(timestamp) FROM ohlcv")
+    ohlcv_max = cur.fetchone()[0]
+    cur.execute("SELECT MAX(published) FROM news")
+    news_max = cur.fetchone()[0]
+    cur.execute("SELECT MAX(rowid) FROM fundamentals")
+    fundamentals_max = cur.fetchone()[0]
+    conn.close()
+    import time
+    latest_data_time = max([
+        int(time.mktime(time.strptime(str(t), "%Y-%m-%d"))) if t else 0
+        for t in [ohlcv_max[:10] if ohlcv_max else None, news_max[:10] if news_max else None]
+    ] + [fundamentals_max or 0])
+    return model_mtime > latest_data_time
+
 
 DB_PATH = "local_db/market_data.db"
 
