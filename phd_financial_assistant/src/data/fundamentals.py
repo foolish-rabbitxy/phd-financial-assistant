@@ -1,3 +1,5 @@
+# src/data/fundamentals.py
+
 import yfinance as yf
 import sqlite3
 import os

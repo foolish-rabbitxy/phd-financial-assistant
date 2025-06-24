@@ -1,42 +1,56 @@
+# src/strategy/engine.py
+
 import sqlite3
 from typing import List, Dict
-from math import sqrt
 import joblib
-import pandas as pd
 import os
-model = joblib.load("model/stock_score_model.pkl")
+import pandas as pd
 
-# Load trained model
 MODEL_PATH = "model/stock_score_model.pkl"
-model = joblib.load(MODEL_PATH) if os.path.exists(MODEL_PATH) else None
-# Ensure model is loaded
-if model is None:
-    raise FileNotFoundError(f"Model not found at {MODEL_PATH}. Please train the model first.")  
+model = None
+if os.path.exists(MODEL_PATH):
+    model = joblib.load(MODEL_PATH)
 
-DB_PATH = "local_db/market_data.db"
-
-def load_candidates() -> List[Dict]:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        SELECT f.symbol, f.pe_ratio, f.dividend_yield, f.market_cap,
-               f.sector, f.industry,
-               AVG(n.sentiment) AS avg_sentiment
-        FROM fundamentals f
-        LEFT JOIN news n ON f.symbol = n.symbol
-        GROUP BY f.symbol
-    ''')
-
-    rows = cursor.fetchall()
+def load_candidates(symbols: List[str] = None) -> List[Dict]:
+    conn = sqlite3.connect("local_db/market_data.db")
+    cur = conn.cursor()
+    if symbols and len(symbols) > 0:
+        placeholder = ",".join(["?"] * len(symbols))
+        cur.execute(
+            f"SELECT symbol, pe_ratio, dividend_yield, market_cap, sector, industry FROM fundamentals WHERE symbol IN ({placeholder})",
+            symbols
+        )
+    else:
+        cur.execute(
+            "SELECT symbol, pe_ratio, dividend_yield, market_cap, sector, industry FROM fundamentals"
+        )
+    rows = cur.fetchall()
     conn.close()
+    stocks = []
+    for row in rows:
+        stocks.append({
+            "symbol": row[0],
+            "pe_ratio": row[1],
+            "dividend_yield": row[2],
+            "market_cap": row[3],
+            "sector": row[4],
+            "industry": row[5],
+        })
+    return stocks
 
-    return [dict(row) for row in rows]
+def enrich_sentiment(stocks: List[Dict]) -> List[Dict]:
+    # Attach avg_sentiment from news table (if available)
+    conn = sqlite3.connect("local_db/market_data.db")
+    cur = conn.cursor()
+    for stock in stocks:
+        cur.execute("SELECT AVG(sentiment) FROM news WHERE symbol=?", (stock["symbol"],))
+        result = cur.fetchone()
+        stock["avg_sentiment"] = result[0] if result and result[0] is not None else 0
+    conn.close()
+    return stocks
 
 def filter_and_score(candidates: List[Dict]) -> List[Dict]:
     filtered = []
-
     for stock in candidates:
         # Basic filters
         if not stock["pe_ratio"] or stock["pe_ratio"] > 40:
@@ -44,131 +58,70 @@ def filter_and_score(candidates: List[Dict]) -> List[Dict]:
         if stock["dividend_yield"] is not None and stock["dividend_yield"] < 0.01:
             continue
 
-        # Get fundamentals
         pe = stock["pe_ratio"]
         div = stock["dividend_yield"] or 0
-        sentiment = stock["avg_sentiment"] or 0
+        sentiment = stock.get("avg_sentiment", 0) or 0
 
-        # Default metrics
-        pct_return = None
-        volatility = None
-
-        # Add historical return/volatility
+        # Add historical return/volatility if available
         try:
+            from src.trading.alpaca_client import get_price_history
             series = get_price_history(stock["symbol"], days=30)
-            if len(series) >= 2:
+            # series should be a pandas Series of prices
+            if series is not None and hasattr(series, "__len__") and len(series) >= 2:
                 pct_return = (series.iloc[-1] - series.iloc[0]) / series.iloc[0]
                 volatility = series.pct_change().std()
-                stock["return_30d"] = round(pct_return * 100, 2)
-                stock["volatility_30d"] = round(volatility * 100, 2)
+                stock["return_30d"] = round(float(pct_return) * 100, 2)
+                stock["volatility_30d"] = round(float(volatility) * 100, 2)
             else:
                 stock["return_30d"] = None
                 stock["volatility_30d"] = None
         except Exception as e:
-            print(f"Warning: could not get price data for {stock['symbol']}: {e}")
             stock["return_30d"] = None
             stock["volatility_30d"] = None
 
-        # ML-based scoring using trained model
-        try:
-
-            features = pd.DataFrame([{
+        # ML-based prediction or fallback score
+        score = 0
+        if model:
+            feature_df = pd.DataFrame([{
                 "pe_ratio": pe,
                 "dividend_yield": div,
                 "market_cap": stock.get("market_cap", 0),
                 "sentiment": sentiment
             }])
-            if features.isnull().values.any():
-                print(f"Warning: missing features for {stock['symbol']}, skipping scoring.")
-                continue
-            # Ensure features are numeric
-            features = features.apply(pd.to_numeric, errors='coerce').fillna(0)
-            if features.empty:
-                print(f"Warning: empty features for {stock['symbol']}, skipping scoring.")
-                continue
-            # Predict score
-            if model is None:
-                print("Error: Model is not loaded. Cannot score stocks.")
-                continue
-            if not hasattr(model, 'predict'):
-                print("Error: Loaded model does not have a predict method.")
-                continue
-            if features.shape[1] != model.n_features_in_:
-                print(f"Error: Feature shape mismatch for {stock['symbol']}. Expected {model.n_features_in_}, got {features.shape[1]}.")
-                continue
+            score = float(model.predict(feature_df)[0])
+        else:
+            # Fallback: simple scoring
+            score = 0.05 * (1 / pe) + 0.1 * div + sentiment
 
-            score = model.predict(features)[0]
-            stock["score"] = round(score, 4)
-        except Exception as e:
-            print(f"Warning: model scoring failed for {stock['symbol']}: {e}")
-            continue
-        # Add to filtered list
-        stock["symbol"] = stock["symbol"].upper()
-        stock["pe_ratio"] = round(pe, 2)
-        stock["dividend_yield"] = round(div, 4)
-        stock["avg_sentiment"] = round(sentiment, 2)
-        stock["score"] = round(stock["score"], 4)
+        stock["score"] = round(score, 4)
         filtered.append(stock)
 
-        return sorted(filtered, key=lambda x: x["score"], reverse=True)
-from typing import List, Dict 
+    # Filter out stocks with no score
+    filtered = [s for s in filtered if "score" in s and s["score"] is not None]
+    return sorted(filtered, key=lambda x: x["score"], reverse=True)
 
-
-def allocate_portfolio(ranked: List[Dict], budget: float = 1000.0, top_n: int = 3) -> List[Dict]:
-    """
-    Allocate capital across top N stocks using score-based weights.
-    """
-    top = ranked[:top_n]
-    total_score = sum(stock["score"] for stock in top)
-
-    for stock in top:
-        weight = stock["score"] / total_score
-        stock["allocation"] = round(budget * weight, 2)
-
-    return top
-
-import pandas as pd
-from alpaca_trade_api.rest import TimeFrame
-from src.trading.alpaca_client import api
-
-def get_price_history(symbol: str, days: int = 30):
-    bars = api.get_bars(
-        symbol.upper(),
-        TimeFrame.Day,
-        limit=days,
-        feed='iex'
-    )
-    closes = [bar.c for bar in bars]
-    return pd.Series(closes)
+def allocate_portfolio(ranked: List[Dict], budget: float = 1000.0) -> List[Dict]:
+    total_score = sum(stock["score"] for stock in ranked[:5]) or 1.0
+    portfolio = []
+    for stock in ranked[:5]:
+        allocation = round((stock["score"] / total_score) * budget, 2)
+        entry = stock.copy()
+        entry["allocation"] = allocation
+        portfolio.append(entry)
+    return portfolio
 
 def generate_explanation(stock: Dict) -> str:
-    symbol = stock["symbol"]
-    reasons = []
-
-    # Valuation
-    if stock["pe_ratio"] and stock["pe_ratio"] < 25:
-        reasons.append("attractive valuation (low P/E ratio)")
-    elif stock["pe_ratio"]:
-        reasons.append(f"P/E of {round(stock['pe_ratio'], 1)}")
-
-    # Yield
-    if stock["dividend_yield"] and stock["dividend_yield"] > 0.02:
-        reasons.append("solid dividend yield")
-
-    # Sentiment
-    if stock["avg_sentiment"] and stock["avg_sentiment"] > 0.1:
-        reasons.append("positive media sentiment")
-
-    # Return
-    if stock.get("return_30d") and stock["return_30d"] > 2:
-        reasons.append(f"30-day price momentum of {stock['return_30d']}%")
-
-    # Volatility
-    if stock.get("volatility_30d") and stock["volatility_30d"] < 2:
-        reasons.append("low recent volatility")
-
-    if not reasons:
-        reasons.append("scored well on overall metrics")
-
-    explanation = f"{symbol} was selected due to " + ", ".join(reasons) + "."
+    explanation = f"{stock['symbol']} was selected due to "
+    details = []
+    if stock.get("pe_ratio") is not None:
+        details.append(f"P/E of {round(stock['pe_ratio'], 1)}")
+    if stock.get("dividend_yield") is not None:
+        details.append(f"dividend yield of {stock['dividend_yield']}")
+    if stock.get("return_30d") is not None:
+        details.append(f"30d return of {stock['return_30d']}%")
+    if stock.get("volatility_30d") is not None:
+        details.append(f"volatility of {stock['volatility_30d']}%")
+    if stock.get("sector"):
+        details.append(f"sector: {stock['sector']}")
+    explanation += ", ".join(details) + "."
     return explanation

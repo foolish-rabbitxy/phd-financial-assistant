@@ -1,52 +1,86 @@
 # src/dashboard/dashboard.py
+
 import streamlit as st
-from src.strategy.engine import load_candidates, filter_and_score, allocate_portfolio, generate_explanation
+from src.strategy.engine import load_candidates, filter_and_score, allocate_portfolio, generate_explanation, enrich_sentiment
+import sqlite3
 from datetime import datetime
+import pandas as pd
 
 st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide")
 st.title("📈 AI Financial Assistant")
-# Set last refreshed time if not already present
+
+# --- Sidebar controls ---
+conn = sqlite3.connect("local_db/market_data.db")
+df = None
+try:
+    df = (
+        st.cache_data(show_spinner=False)(
+            lambda: pd.read_sql_query(
+                "SELECT * FROM fundamentals", conn
+            )
+        )()
+    )
+except Exception as e:
+    st.warning(f"Failed to load fundamentals: {e}")
+finally:
+    conn.close()
+
+filtered_symbols = None
+if df is not None:
+    st.sidebar.header("🔎 Filter Stocks")
+    all_sectors = sorted(df["sector"].dropna().unique())
+    sector = st.sidebar.multiselect("Sector", all_sectors, default=all_sectors)
+    min_cap = st.sidebar.number_input("Min Market Cap ($B)", min_value=0.0, value=0.0)
+    search = st.sidebar.text_input("Symbol search", "")
+    filtered = df[
+        (df["sector"].isin(sector)) &
+        (df["market_cap"].fillna(0) / 1e9 >= min_cap) &
+        (df["symbol"].str.contains(search.upper()))
+    ]
+    filtered_symbols = filtered["symbol"].tolist()
+else:
+    filtered_symbols = []
+
+# Show current timestamp with milliseconds, persistent with session_state
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = datetime.now()
-
-# Display the last refresh time in milliseconds
 formatted_time = st.session_state.last_refresh.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 st.caption(f"🕒 Last refreshed: {formatted_time}")
 
-# Add a brief description
-st.markdown("""
-Welcome to the AI Financial Assistant Dashboard! This tool helps you identify top stock picks based on various financial metrics and AI-driven sentiment analysis. 
-It provides a comprehensive overview of potential investments, including Price-to-Earnings (P/E) ratios, dividend yields, and market sentiment.
-You can also view suggested portfolio allocations and detailed explanations for each stock pick.
-""")
-
-
-# Load candidates and process
 with st.spinner("Loading data..."):
-    stocks = load_candidates()
+    stocks = load_candidates(symbols=filtered_symbols)
+    stocks = enrich_sentiment(stocks)
     ranked = filter_and_score(stocks)
     portfolio = allocate_portfolio(ranked, budget=1000.0)
 
 if not ranked:
-    st.warning("No qualified stocks to show. Try updating your dataset.")
+    st.warning("No qualified stocks to show. Try updating your dataset or adjusting filters.")
     st.stop()
 
-# Show top picks
+def make_html_link(name, url):
+    return f'<a href="{url}" target="_blank">{name}</a>'
+
 st.subheader("🏆 Top Picks")
-st.dataframe([
-    {
+table_data = []
+for s in ranked[:10]:
+    table_data.append({
         "Symbol": s["symbol"],
         "Score": s["score"],
         "P/E": s["pe_ratio"],
         "Yield": s["dividend_yield"],
-        "Sentiment": s["avg_sentiment"],
+        "Sentiment": s.get("avg_sentiment", 0),
         "30d Return": s.get("return_30d"),
-        "Volatility": s.get("volatility_30d")
-    }
-    for s in ranked[:5]
-])
+        "Volatility": s.get("volatility_30d"),
+        "Fidelity": make_html_link("Fidelity", f"https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol={s['symbol']}"),
+        "Yahoo Finance": make_html_link("Yahoo Finance", f"https://finance.yahoo.com/quote/{s['symbol']}/"),
+    })
 
-# Show allocation
+df_links = pd.DataFrame(table_data)
+st.markdown(
+    df_links.to_html(escape=False, index=False),
+    unsafe_allow_html=True
+)
+
 st.subheader("💰 Suggested Allocation ($1000)")
 st.dataframe([
     {
@@ -57,36 +91,23 @@ st.dataframe([
     for s in portfolio
 ])
 
-# Show explanations
 st.subheader("🧠 Explanation for Each Pick")
 for stock in portfolio:
     st.markdown(f"**{stock['symbol']}**: {generate_explanation(stock)}")
-# Add a button to refresh data
+
 if st.button("🔄 Refresh Data"):
-    with st.spinner("Refreshing data..."):
-        stocks = load_candidates()
-        ranked = filter_and_score(stocks)
-        portfolio = allocate_portfolio(ranked, budget=1000.0)
-        st.session_state.last_refresh = datetime.now()
+    st.session_state.last_refresh = datetime.now()
     st.success("Data refreshed successfully!")
-    ##############
-    ##############
-    # Restart the script to reflect changes
-    ##############
-    ##############
-    st.rerun()  # Restart the script
+    st.rerun()
 
-
-# Sidebar
-st.sidebar.title("📂 Navigation")  
+st.sidebar.title("📂 Navigation")
 st.sidebar.markdown("- [Home](#)")
 st.sidebar.markdown("- [Top Picks](#top-picks)")
-st.sidebar.markdown("- [Suggested Allocation](#suggested-allocation)")      
+st.sidebar.markdown("- [Suggested Allocation](#suggested-allocation)")
 st.sidebar.markdown("- [Explanations](#explanation-for-each-pick)")
 st.sidebar.markdown("- [Refresh Data](#)")
-st.sidebar.markdown("- [Contact](#)")
+st.sidebar.markdown("- [Contact](#contact)")
 
-# Footer
 st.markdown("""
 <style>
 footer {

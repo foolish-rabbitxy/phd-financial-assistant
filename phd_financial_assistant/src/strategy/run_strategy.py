@@ -1,98 +1,54 @@
-# run_strategy.py
+# src/strategy/run_strategy.py
 
-from src.strategy.engine import (
-    load_candidates,
-    filter_and_score,
-    allocate_portfolio,
-    generate_explanation,
-)
+import sys
+from src.strategy.engine import load_candidates, filter_and_score, allocate_portfolio, generate_explanation
 from src.utils.mail import send_email
-import os
 
-def main():
+def main(send_mail=False):
     print("📊 Loading candidates...")
     stocks = load_candidates()
-
     print("✅ Filtering and scoring...")
     ranked = filter_and_score(stocks)
-
-    if not ranked:
-        print("⚠️ No valid stocks found.")
-        return
+    portfolio = allocate_portfolio(ranked, budget=1000.0)
 
     print("\n📈 Top picks:")
     for stock in ranked[:5]:
-        print(f"{stock['symbol']}: Score={stock['score']}, P/E={stock['pe_ratio']}, Yield={stock['dividend_yield']}, Sentiment={round(stock['avg_sentiment'] or 0, 2)}")
+        print(f"{stock['symbol']}: Score={stock['score']}, P/E={stock['pe_ratio']}, Yield={stock['dividend_yield']}, Sentiment={stock.get('avg_sentiment', 0)}")
 
     print("\n💰 Suggested allocation ($1000):")
-    portfolio = allocate_portfolio(ranked, budget=1000.0)
     for stock in portfolio:
         print(f"{stock['symbol']}: ${stock['allocation']} → Score: {stock['score']}")
 
     print("\n📊 Details with 30d Return & Volatility:")
     for stock in portfolio:
-        print(f"{stock['symbol']}: Score={stock['score']}, P/E={stock['pe_ratio']}, Yield={stock['dividend_yield']}, "
-              f"Sentiment={round(stock['avg_sentiment'] or 0, 2)}, 30d Return={stock.get('return_30d')}%, "
-              f"Volatility={stock.get('volatility_30d')}%")
+        print(f"{stock['symbol']}: Score={stock['score']}, P/E={stock['pe_ratio']}, Yield={stock['dividend_yield']}, Sentiment={stock.get('avg_sentiment', 0)}, 30d Return={stock.get('return_30d')}%, Volatility={stock.get('volatility_30d')}%")
 
     print("\n🧠 Explanation for each pick:")
     for stock in portfolio:
-        explanation = generate_explanation(stock)
-        print(f"- {explanation}")
+        print(f"- {generate_explanation(stock)}")
 
-    # =========================
-    # 📧 Send HTML Email Report
-    # =========================
-    rows = ""
-    for s in portfolio:
-        rows += f"""
-        <tr>
-            <td>{s['symbol']}</td>
-            <td>{s['score']}</td>
-            <td>{s['pe_ratio']}</td>
-            <td>{s['dividend_yield']}</td>
-            <td>{s['avg_sentiment']}</td>
-            <td>{s.get('return_30d', 'N/A')}</td>
-            <td>{s.get('volatility_30d', 'N/A')}</td>
-            <td>${s['allocation']}</td>
-        </tr>
-        """
+    # ---- Email summary as HTML ----
+    if send_mail:
+        html = "<h2>Daily Portfolio Picks</h2>"
+        html += "<table border=1 cellpadding=6><tr><th>Symbol</th><th>Score</th><th>P/E</th><th>Yield</th><th>Sentiment</th><th>30d Return</th><th>Volatility</th></tr>"
+        for stock in portfolio:
+            html += f"<tr><td>{stock['symbol']}</td><td>{stock['score']}</td><td>{stock['pe_ratio']}</td><td>{stock['dividend_yield']}</td><td>{stock.get('avg_sentiment', 0)}</td><td>{stock.get('return_30d')}</td><td>{stock.get('volatility_30d')}</td></tr>"
+        html += "</table>"
 
-    html_report = f"""
-    <html>
-    <head>
-      <style>
-        table {{ border-collapse: collapse; width: 100%; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: center; }}
-        th {{ background-color: #f2f2f2; }}
-      </style>
-    </head>
-    <body>
-      <h2>📈 Daily Investment Report</h2>
-      <table>
-        <tr>
-          <th>Symbol</th>
-          <th>Score</th>
-          <th>P/E Ratio</th>
-          <th>Yield</th>
-          <th>Sentiment</th>
-          <th>30d Return</th>
-          <th>Volatility</th>
-          <th>Allocation ($)</th>
-        </tr>
-        {rows}
-      </table>
-    </body>
-    </html>
-    """
+        html += "<h3>Explanations</h3><ul>"
+        for stock in portfolio:
+            html += f"<li>{generate_explanation(stock)}</li>"
+        html += "</ul>"
 
-    send_email(
-        subject="📈 Daily Investment Report",
-        body=html_report,
-        to_email=os.getenv("EMAIL_RECEIVER"),
-        is_html=True
-    )
-
+        try:
+            send_email(
+                subject="Daily Portfolio Picks",
+                html_body=html
+            )
+            print("✅ Email sent.")
+        except Exception as e:
+            print(f"❌ Failed to send email: {e}")
 
 if __name__ == "__main__":
-    main()
+    send_mail = "--email" in sys.argv
+    main(send_mail=send_mail)

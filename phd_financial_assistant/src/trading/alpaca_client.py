@@ -35,6 +35,27 @@ def get_latest_price(symbol: str):
         print(f"Error fetching price for {symbol}: {e}")
         return None
 
+def get_price_history(symbol, days=30):
+    import sqlite3
+    import pandas as pd
+    conn = sqlite3.connect("local_db/market_data.db")
+    df = pd.read_sql_query(
+        "SELECT timestamp, close FROM ohlcv WHERE symbol=? ORDER BY timestamp DESC LIMIT ?",
+        conn,
+        params=(symbol, days)
+    )
+
+    print(f"{symbol}: {df.shape[0]} bars fetched")  # Debug line
+
+    conn.close()
+    # Ensure it's sorted in ascending timestamp order
+    df = df.sort_values("timestamp")
+    if len(df) < 2:
+        return None
+    # Return pandas Series with timestamps as index, close price as values
+    return pd.Series(df["close"].values, index=pd.to_datetime(df["timestamp"]))
+
+
 def submit_order(symbol: str, qty: int, side: str = "buy", type_: str = "market", time_in_force: str = "gtc"):
     """
     Submit a basic market order.

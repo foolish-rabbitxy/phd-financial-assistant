@@ -1,18 +1,22 @@
-from src.data.fundamentals import init_fundamentals_table, fetch_and_store_fundamentals
+# src/data/fundamentals_main.py
+
+from src.data.fundamentals import fetch_and_store_fundamentals
+import sqlite3
+
+def get_all_symbols():
+    conn = sqlite3.connect("local_db/market_data.db")
+    cur = conn.cursor()
+    cur.execute("SELECT symbol FROM fundamentals")
+    symbols = [row[0] for row in cur.fetchall()]
+    conn.close()
+    return symbols
 
 if __name__ == "__main__":
-    init_fundamentals_table()
-    symbols = ["AAPL", "MSFT", "SPY", "TSLA"]
+    symbols = get_all_symbols()
     for symbol in symbols:
         print(f"Fetching fundamentals for {symbol}...")
-        fetch_and_store_fundamentals(symbol)
+        try:
+            fetch_and_store_fundamentals(symbol)
+        except Exception as e:
+            print(f"Error fetching fundamentals for {symbol}: {e}")
     print("Done.")
-# This script initializes the fundamentals table and fetches financial data for a list of symbols.
-# It uses the yfinance library to get the latest financial metrics and stores them in a local SQLite database.
-# The database is located at src/local_db/market_data.db, and the table is named "fundamentals".
-# Each symbol's data includes the P/E ratio, dividend yield, market cap, sector, and industry.
-# If the symbol already exists in the database, it will be updated with the latest data.
-# The script can be run directly to populate the database with the specified symbols.
-# Make sure to have the yfinance library installed in your Python environment.
-# You can install it using pip:
-# pip install yfinance  

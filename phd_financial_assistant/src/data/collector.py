@@ -1,3 +1,5 @@
+# src/data/collector.py
+
 # Pull data from Alpaca or Yahoo Finance
 from alpaca_trade_api.rest import TimeFrame
 from src.trading.alpaca_client import api
