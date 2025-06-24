@@ -95,6 +95,31 @@ st.subheader("🧠 Explanation for Each Pick")
 for stock in portfolio:
     st.markdown(f"**{stock['symbol']}**: {generate_explanation(stock)}")
 
+from src.strategy.portfolio import buy_portfolio, get_portfolio_snapshot, reset_portfolio, create_portfolio_table
+
+# Ensure the portfolio table exists
+create_portfolio_table()
+
+st.subheader("📦 Simulated Portfolio Holdings")
+portfolio_df = get_portfolio_snapshot()
+if not portfolio_df.empty:
+    st.dataframe(portfolio_df)
+else:
+    st.info("No simulated portfolio yet. Click below to 'buy' the latest picks.")
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("💸 Simulate Buy Top Picks"):
+        buy_portfolio(portfolio)
+        st.success("Bought top picks! Refresh the dashboard to see your holdings.")
+with col2:
+    if st.button("🗑️ Reset Portfolio"):
+        reset_portfolio()
+        st.success("Simulated portfolio reset. Refresh to verify.")
+
+# Optionally, add explanations for portfolio performance, Sharpe ratio, etc. in future!
+
+
 if st.button("🔄 Refresh Data"):
     st.session_state.last_refresh = datetime.now()
     st.success("Data refreshed successfully!")
