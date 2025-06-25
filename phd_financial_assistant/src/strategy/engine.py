@@ -111,51 +111,28 @@ def allocate_portfolio(ranked: List[Dict], budget: float = 1000.0) -> List[Dict]
     return portfolio
 
 def generate_explanation(stock):
-    """
-    Produce a detailed, readable explanation of why this stock was chosen.
-    """
-    explanations = []
-    symbol = stock.get("symbol", "")
-    pe = stock.get("pe_ratio")
-    div = stock.get("dividend_yield")
-    market_cap = stock.get("market_cap")
-    sector = stock.get("sector", "")
-    industry = stock.get("industry", "")
-    sentiment = stock.get("avg_sentiment", 0)
-    ret = stock.get("return_30d")
-    vol = stock.get("volatility_30d")
-
-    explanations.append(f"**Symbol**: {symbol}")
-    if sector or industry:
-        explanations.append(f"**Sector/Industry**: {sector or ''} / {industry or ''}")
-    if market_cap:
-        explanations.append(f"**Market Cap**: ${market_cap/1e9:,.2f}B")
-    if pe:
-        explanations.append(f"**P/E Ratio**: {pe:.2f}")
-    if div is not None:
-        explanations.append(f"**Dividend Yield**: {div:.2%}")
-    if ret is not None:
-        explanations.append(f"**30d Return**: {ret}%")
-    if vol is not None:
-        explanations.append(f"**30d Volatility**: {vol}%")
-    explanations.append(f"**Sentiment Score**: {sentiment:.2f} " +
-        ("(positive)" if sentiment > 0 else "(neutral)" if sentiment == 0 else "(negative)")
+    def fmt(val, pct=False):
+        if val is None: return "N/A"
+        if pct: return f"{val:.2f}%"
+        if isinstance(val, float): return f"${val:,.2f}"
+        return str(val)
+    sentiment_desc = (
+        f"{stock.get('avg_sentiment', 0):.2f} "
+        + ("(positive)" if stock.get("avg_sentiment", 0) > 0.1 else "neutral" if abs(stock.get("avg_sentiment", 0)) < 0.1 else "(negative)")
     )
-    # Summary
-    summary = "Selected due to"
-    if pe and pe < 25:
-        summary += f" attractive P/E ratio ({pe:.2f}),"
-    if div and div > 0.01:
-        summary += f" solid dividend yield ({div:.2%}),"
-    if sentiment and abs(sentiment) > 0.1:
-        summary += f" strong {'positive' if sentiment > 0 else 'negative'} news sentiment,"
-    if ret and ret > 0:
-        summary += f" recent price momentum ({ret}% return in last 30d),"
-    if vol and vol < 10:
-        summary += f" low recent volatility ({vol}%),"
-    if not summary.endswith(","):
-        summary = summary.rstrip(",")
-    summary = summary.rstrip(",") + "."
-    explanations.append("**Summary:** " + summary)
-    return "  \n".join(explanations)
+    html = (
+        f"<strong>Symbol:</strong> {stock['symbol']}<br>"
+        f"<strong>Sector/Industry:</strong> {stock.get('sector','N/A')} / {stock.get('industry','N/A')}<br>"
+        f"<strong>Market Cap:</strong> {fmt(stock.get('market_cap'))}<br>"
+        f"<strong>P/E Ratio:</strong> {fmt(stock.get('pe_ratio'))}<br>"
+        f"<strong>Dividend Yield:</strong> {fmt(stock.get('dividend_yield'), pct=True)}<br>"
+        f"<strong>30d Return:</strong> {fmt(stock.get('return_30d'), pct=True)}<br>"
+        f"<strong>30d Volatility:</strong> {fmt(stock.get('volatility_30d'), pct=True)}<br>"
+        f"<strong>Sentiment Score:</strong> {sentiment_desc}<br>"
+        f"<strong>Summary:</strong> Selected due to attractive P/E ratio ({fmt(stock.get('pe_ratio'))}), "
+        f"solid dividend yield ({fmt(stock.get('dividend_yield'), pct=True)}), "
+        f"{'strong positive news sentiment' if stock.get('avg_sentiment', 0) > 0.1 else 'neutral news sentiment' if abs(stock.get('avg_sentiment', 0)) < 0.1 else 'negative news sentiment'}, "
+        f"and {'low' if stock.get('volatility_30d', 0) < 3 else 'high'} recent volatility ({fmt(stock.get('volatility_30d'), pct=True)})."
+    )
+    return html
 

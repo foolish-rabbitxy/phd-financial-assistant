@@ -1,19 +1,32 @@
 # src/dashboard/dashboard.py
 
 import streamlit as st
-from src.strategy.engine import load_candidates, filter_and_score, allocate_portfolio, generate_explanation, enrich_sentiment
+from src.strategy.engine import (
+    load_candidates, filter_and_score, allocate_portfolio,
+    generate_explanation, enrich_sentiment
+)
 import sqlite3
 from datetime import datetime
 import pandas as pd
-from streamlit import rerun
 import os
-from src.trading.alpaca_client import buy_top_picks_with_alpaca, get_alpaca_portfolio
+from src.trading.alpaca_client import buy_top_picks_with_alpaca, get_alpaca_portfolio, get_recent_alpaca_orders
 
 st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide")
 st.title("📈 AI Financial Assistant")
 
-# --- Persistent Allocation Value (File-Backed) ---
+st.markdown("""
+<div style="padding: 16px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #666;">
+<strong>Legend:</strong><br>
+<b>P/E:</b> <i>Price-to-Earnings ratio</i> – how much investors are willing to pay per dollar of company earnings.<br>
+<b>Yield:</b> <i>Dividend Yield (%)</i> – how much a company pays in dividends each year as a percentage of its stock price.<br>
+<b>Sentiment:</b> <i>News Sentiment Score</i> – a measure of recent news positivity (positive, neutral, or negative) about the stock.<br>
+<b>30d Return:</b> <i>30-Day Price Change (%)</i> – the percent gain or loss in stock price over the past 30 days.<br>
+<b>Volatility:</b> <i>30-Day Volatility (%)</i> – how much the stock price has fluctuated over the last 30 days (higher = riskier, lower = more stable).
+</div>
+""", unsafe_allow_html=True)
 
+
+# --- Persistent Allocation Value (File-Backed) ---
 PERSIST_FILE = "local_db/allocation.txt"
 
 def save_allocation(val):
@@ -49,7 +62,6 @@ def parse_usd_amount(val):
     except Exception:
         return None
 
-# Draw the input box
 allocation_input = st.text_input(
     "💰 Enter Suggested Allocation Amount (USD):",
     value=st.session_state["allocation_input"],
@@ -60,7 +72,6 @@ allocation_input = st.text_input(
 
 allocation = parse_usd_amount(st.session_state["allocation_input"])
 
-# Persist value on change, only if it's a valid amount
 if allocation is not None:
     save_allocation(allocation)
 
@@ -124,13 +135,15 @@ if not ranked:
     st.warning("No qualified stocks to show. Try updating your dataset or adjusting filters.")
     st.stop()
 
-def make_html_link(name, url):
-    return f'<a href="{url}" target="_blank">{name}</a>'
+def make_markdown_link(label, url):
+    return f"[{label}]({url})"
 
+# --- Top 10 Picks Table (interactive, sortable, with rank, clickable links) ---
 st.subheader("🏆 Top 10 Overall Picks")
 table_data = []
-for s in ranked[:10]:
+for i, s in enumerate(ranked[:10], 1):
     table_data.append({
+        "Rank": i,
         "Symbol": s["symbol"],
         "Score": s["score"],
         "P/E": s["pe_ratio"],
@@ -138,51 +151,74 @@ for s in ranked[:10]:
         "Sentiment": s.get("avg_sentiment", 0),
         "30d Return": s.get("return_30d"),
         "Volatility": s.get("volatility_30d"),
-        "Fidelity": make_html_link("Fidelity", f"https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol={s['symbol']}"),
-        "Yahoo Finance": make_html_link("Yahoo Finance", f"https://finance.yahoo.com/quote/{s['symbol']}/"),
+        "Fidelity": f'<a href="https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol={s["symbol"]}" target="_blank">Fidelity</a>',
+        "Yahoo Finance": f'<a href="https://finance.yahoo.com/quote/{s["symbol"]}/" target="_blank">Yahoo Finance</a>',
     })
-
 df_links = pd.DataFrame(table_data)
+
+st.markdown("""
+<style>
+table { width: 100% !important; border-collapse: separate !important; }
+th, td {
+    text-align: left !important;
+    padding: 10px 8px !important;
+    vertical-align: top !important;
+    font-size: 15px;
+}
+th {
+    background: #fafafc;
+    color: #222;
+    border-bottom: 2px solid #f1f1f1;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown(
     df_links.to_html(escape=False, index=False),
     unsafe_allow_html=True
 )
 
-# --- Wrapped Allocation & Explanation Table ---
-st.subheader(f"📝 Suggested Allocation Top 5 Picks & Rationale (Suggested Allocation Amount (USD): ${allocation:,.2f})")
-
-def wrap_text_cell(text):
-    # Ensures long explanations wrap in the table
-    return f'<div style="white-space: pre-wrap; word-break: break-word; max-width: 500px;">{text}</div>'
+# --- Suggested Allocation Table with Explanations (Top 5) ---
+st.subheader(f"📝 Suggested Allocation Top 5 Picks & Rationale (${allocation:,.2f})")
 
 allocation_table = []
-for stock in portfolio:
+for i, stock in enumerate(portfolio[:5], 1):
     allocation_table.append({
+        "Rank": i,
         "Symbol": stock["symbol"],
         "Allocation ($)": f"${stock['allocation']:,.2f}",
         "Score": f"{stock['score']:.4f}",
-        "Explanation": wrap_text_cell(generate_explanation(stock))
+        "Explanation": generate_explanation(stock)  # Should return formatted HTML or plain text
     })
-
 df_alloc = pd.DataFrame(allocation_table)
 
-# Custom CSS for wider table and wrapped text
+# CSS for better line-wrapping and left alignment in Explanation
 st.markdown("""
-<style>
-table {width:100% !important;}
-th, td {padding: 8px !important; vertical-align:top !important;}
-td div {white-space: pre-wrap; word-break: break-word; max-width: 500px;}
-</style>
+    <style>
+    .st-emotion-cache-10trblm, .st-emotion-cache-1avcm0n, .st-emotion-cache-16txtl3 {
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        text-align: left !important;
+        font-size: 14px;
+        min-width: 350px !important;
+    }
+    th { text-align: left !important; }
+    </style>
 """, unsafe_allow_html=True)
 
+def explanation_html(row):
+    return f'<div>{row}</div>'
+
+# Show table with explanations as HTML, for full formatting:
+df_alloc_html = df_alloc.copy()
+df_alloc_html["Explanation"] = df_alloc_html["Explanation"].apply(explanation_html)
 st.markdown(
-    df_alloc.to_html(escape=False, index=False),
+    df_alloc_html.to_html(escape=False, index=False),
     unsafe_allow_html=True
 )
 
+# Simulated Portfolio Holdings
 from src.strategy.portfolio import buy_portfolio, get_portfolio_snapshot, reset_portfolio, create_portfolio_table
-
-# Ensure the portfolio table exists
 create_portfolio_table()
 
 st.subheader("📦 Simulated Portfolio Holdings")
@@ -193,7 +229,7 @@ else:
     st.info("No simulated portfolio yet. Click below to 'buy' the latest picks.")
 
 # --- Combined Button Section (unique keys!) ---
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 with col1:
     if st.button("💸 Simulate Buying Suggested Allocation Top 5 Picks", key="simulate_buy"):
         buy_portfolio(portfolio)
@@ -203,13 +239,6 @@ with col2:
     if st.button("🗑️ Reset Simulated Portfolio Holdings", key="reset_portfolio"):
         reset_portfolio()
         st.success("Simulated portfolio reset. Refreshing dashboard...")
-        st.rerun()
-with col3:
-    if st.button("🤖 Buy Top Picks with Alpaca Paper Trading", key="alpaca_buy"):
-        results = buy_top_picks_with_alpaca(portfolio)
-        for line in results:
-            st.info(line)
-        st.success("Orders submitted to Alpaca! Refresh the Alpaca portfolio section below in a moment.")
         st.rerun()
 
 # --- Alpaca Live Portfolio Section ---
@@ -231,6 +260,25 @@ if alpaca_port:
     - **Positions:** {perf['num_positions']}
     """)
 
+# --- Combined Button Section (unique keys!) ---
+col3, = st.columns(1)
+with col3:
+    if st.button("🤖 Buy Top Picks with Alpaca Paper Trading", key="alpaca_buy"):
+        results = buy_top_picks_with_alpaca(portfolio)
+        for line in results:
+            st.info(line)
+        st.success("Orders submitted to Alpaca! Refresh the Alpaca portfolio section below in a moment.")
+        st.rerun()
+
+# --- Alpaca Recent Orders Section ---
+st.subheader("📝 Recent Alpaca Paper Trading Orders")
+recent_orders = get_recent_alpaca_orders()
+if recent_orders:
+    df_orders = pd.DataFrame(recent_orders)
+    st.dataframe(df_orders)
+else:
+    st.info("No recent Alpaca orders found.")
+
 from src.strategy.portfolio import get_portfolio_performance
 
 st.subheader("📊 Portfolio Analytics")
@@ -251,8 +299,6 @@ if st.button("🔄 Refresh Data"):
     st.session_state.last_refresh = datetime.now()
     st.success("Data refreshed successfully!")
     st.rerun()
-
-
 
 st.markdown("""
 <style>

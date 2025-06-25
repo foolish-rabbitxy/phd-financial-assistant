@@ -79,6 +79,31 @@ def get_alpaca_portfolio():
         print(f"Error fetching Alpaca portfolio: {e}")
         return []
 
+def get_recent_alpaca_orders(statuses=("filled",), limit=20):
+    """
+    Fetches recent Alpaca orders, defaulting to 'filled' orders.
+    Returns a list of dicts with symbol, qty, side, status, type, submitted_at, filled_at, filled_avg_price, and id.
+    """
+    try:
+        orders = api.list_orders(status=all, limit=limit, nested=False)
+        results = []
+        for o in orders:
+            results.append({
+                "Symbol": o.symbol,
+                "Qty": o.qty,
+                "Side": o.side,
+                "Status": o.status,
+                "Type": o.type,
+                "Submitted": str(o.submitted_at)[:19],
+                "Filled": str(o.filled_at)[:19] if o.filled_at else "",
+                "Avg Price": o.filled_avg_price if o.filled_avg_price else "",
+                "Order ID": o.id,
+            })
+        return results
+    except Exception as e:
+        print(f"Error fetching Alpaca orders: {e}")
+        return []
+
 
 def submit_order(symbol: str, qty: int, side: str = "buy", type_: str = "market", time_in_force: str = "gtc"):
     """
