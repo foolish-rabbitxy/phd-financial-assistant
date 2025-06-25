@@ -279,21 +279,22 @@ if recent_orders:
 else:
     st.info("No recent Alpaca orders found.")
 
-from src.strategy.portfolio import get_portfolio_performance
+from src.strategy.portfolio import compute_alpaca_portfolio_analytics
 
-st.subheader("📊 Portfolio Analytics")
-performance = get_portfolio_performance()
-if performance:
+st.subheader("📊 Alpaca Portfolio Analytics")
+alpaca_analytics = compute_alpaca_portfolio_analytics()
+if alpaca_analytics:
     st.markdown(f"""
-    - **Total Return:** {performance['total_return']}%
-    - **Annualized Volatility:** {performance['annual_volatility']}%
-    - **Sharpe Ratio:** {performance['sharpe_ratio']}
-    - **Start Value:** ${performance['start_value']}
-    - **End Value:** ${performance['end_value']}
-    - **Days Tracked:** {performance['num_days']}
+    - **Total Return:** {alpaca_analytics['total_return']}%
+    - **Annualized Volatility:** {alpaca_analytics['annual_volatility']}%
+    - **Sharpe Ratio:** {alpaca_analytics['sharpe_ratio']}
+    - **Start Value:** ${alpaca_analytics['start_value']}
+    - **End Value:** ${alpaca_analytics['end_value']}
+    - **Days Tracked:** {alpaca_analytics['num_days']}
     """)
 else:
-    st.info("Not enough data to calculate portfolio analytics yet.")
+    st.info("Not enough price history to calculate Alpaca portfolio analytics yet.")
+
 
 if st.button("🔄 Refresh Data"):
     st.session_state.last_refresh = datetime.now()
