@@ -15,7 +15,7 @@ st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide
 st.title("📈 AI Financial Assistant")
 
 st.markdown("""
-<div style="padding: 16px; border: 1px solid #e0e0e0; border-radius: 8px; background-color: #666;">
+<div style="padding: 16px; border: 0px solid #e0e0e0; border-radius: 8px; background-color: #ccc;">
 <strong>Legend:</strong><br>
 <b>P/E:</b> <i>Price-to-Earnings ratio</i> – how much investors are willing to pay per dollar of company earnings.<br>
 <b>Yield:</b> <i>Dividend Yield (%)</i> – how much a company pays in dividends each year as a percentage of its stock price.<br>
