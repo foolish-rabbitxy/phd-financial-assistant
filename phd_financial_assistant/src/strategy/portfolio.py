@@ -3,6 +3,74 @@ import sqlite3
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from src.trading.alpaca_client import get_alpaca_portfolio, get_recent_alpaca_orders
+from src.trading.alpaca_client import get_price_history
+
+def build_alpaca_portfolio_history():
+    """Reconstruct daily portfolio value for the Alpaca paper account."""
+    positions = get_alpaca_portfolio()
+    if not positions or not isinstance(positions, list):
+        return None
+
+    symbols = [pos['symbol'] for pos in positions]
+    # Get historical prices for each symbol (30 days)
+    price_histories = {}
+    for sym in symbols:
+        s = get_price_history(sym, days=30)
+        if isinstance(s, pd.Series):
+            price_histories[sym] = s
+
+    # Build value over time (for days present in any symbol)
+    all_dates = pd.to_datetime(sorted(
+        {date for series in price_histories.values() for date in series.index}
+    ))
+    history = pd.DataFrame(index=all_dates)
+
+    # Sum market value for each symbol at each date
+    for sym in symbols:
+        qty = 0
+        # Find quantity for this symbol (from positions)
+        for pos in positions:
+            if pos['symbol'] == sym:
+                try:
+                    qty = float(pos['qty'])
+                except Exception:
+                    qty = 0
+        if sym in price_histories:
+            s = price_histories[sym]
+            # Fill forward last price for missing dates
+            s = s.reindex(history.index, method='ffill')
+            history[sym] = s * qty
+
+    # Add up all positions for total value per day
+    history["portfolio_value"] = history.sum(axis=1)
+    return history
+
+def compute_alpaca_portfolio_analytics():
+    """Returns dict with total_return, annual_volatility, sharpe_ratio, etc."""
+    hist = build_alpaca_portfolio_history()
+    if hist is None or hist["portfolio_value"].isnull().all():
+        return None
+
+    hist = hist.dropna(subset=["portfolio_value"])
+    if len(hist) < 3:
+        return None
+
+    values = hist["portfolio_value"]
+    returns = values.pct_change().dropna()
+    total_return = (values.iloc[-1] / values.iloc[0] - 1) * 100
+    annual_volatility = returns.std() * (252**0.5) * 100
+    sharpe = (returns.mean() / returns.std()) * (252**0.5) if returns.std() > 0 else None
+
+    return {
+        "total_return": round(total_return, 2),
+        "annual_volatility": round(annual_volatility, 2) if annual_volatility else "N/A",
+        "sharpe_ratio": round(sharpe, 2) if sharpe else "N/A",
+        "start_value": round(values.iloc[0], 2),
+        "end_value": round(values.iloc[-1], 2),
+        "num_days": len(values),
+    }
+
 
 def create_portfolio_table():
     conn = sqlite3.connect("local_db/market_data.db")
