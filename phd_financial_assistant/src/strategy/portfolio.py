@@ -85,8 +85,6 @@ def reset_portfolio():
     conn.commit()
     conn.close()
     print("Simulated portfolio reset.")
-    print(f"Order submitted: {side} {qty} shares of {symbol} at {type_} price")
-    print(f"Order ID: {order.id}")
 
 def get_portfolio_performance():
     """

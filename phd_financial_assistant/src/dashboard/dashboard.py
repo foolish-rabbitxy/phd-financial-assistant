@@ -5,9 +5,67 @@ from src.strategy.engine import load_candidates, filter_and_score, allocate_port
 import sqlite3
 from datetime import datetime
 import pandas as pd
+from streamlit import rerun
+import os
 
 st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide")
 st.title("📈 AI Financial Assistant")
+
+# --- Persistent Allocation Value (File-Backed) ---
+
+PERSIST_FILE = "local_db/allocation.txt"
+
+def save_allocation(val):
+    try:
+        os.makedirs(os.path.dirname(PERSIST_FILE), exist_ok=True)
+        with open(PERSIST_FILE, "w") as f:
+            f.write(str(val))
+    except Exception:
+        pass
+
+def load_allocation():
+    try:
+        if os.path.exists(PERSIST_FILE):
+            with open(PERSIST_FILE, "r") as f:
+                val = f.read()
+                if val:
+                    return val.strip()
+    except Exception:
+        pass
+    return "1000"
+
+if "allocation_input" not in st.session_state:
+    st.session_state["allocation_input"] = load_allocation()
+
+def parse_usd_amount(val):
+    import re
+    cleaned = re.sub(r"[^\d.]", "", str(val))
+    try:
+        usd = float(cleaned)
+        if usd <= 0 or usd > 1_000_000_000:
+            return None
+        return round(usd, 2)
+    except Exception:
+        return None
+
+# Draw the input box
+allocation_input = st.text_input(
+    "💰 Enter Suggested Allocation Amount (USD):",
+    value=st.session_state["allocation_input"],
+    key="allocation_input",
+    max_chars=10,
+    help="Enter a positive amount in US Dollars for your simulated investment."
+)
+
+allocation = parse_usd_amount(st.session_state["allocation_input"])
+
+# Persist value on change, only if it's a valid amount
+if allocation is not None:
+    save_allocation(allocation)
+
+if allocation is None:
+    st.error("Please enter a valid positive dollar amount (e.g., 1000, 5,000, $2500.75), up to $1 billion.")
+    st.stop()
 
 # --- Sidebar controls ---
 conn = sqlite3.connect("local_db/market_data.db")
@@ -51,7 +109,7 @@ with st.spinner("Loading data..."):
     stocks = load_candidates(symbols=filtered_symbols)
     stocks = enrich_sentiment(stocks)
     ranked = filter_and_score(stocks)
-    portfolio = allocate_portfolio(ranked, budget=1000.0)
+    portfolio = allocate_portfolio(ranked, budget=allocation)
 
 if not ranked:
     st.warning("No qualified stocks to show. Try updating your dataset or adjusting filters.")
@@ -81,19 +139,37 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.subheader("💰 Suggested Allocation ($1000)")
-st.dataframe([
-    {
-        "Symbol": s["symbol"],
-        "Allocation ($)": s["allocation"],
-        "Score": s["score"]
-    }
-    for s in portfolio
-])
+# --- Wrapped Allocation & Explanation Table ---
+st.subheader(f"📝 Suggested Allocation & Rationale (${allocation:,.2f})")
 
-st.subheader("🧠 Explanation for Each Pick")
+def wrap_text_cell(text):
+    # Ensures long explanations wrap in the table
+    return f'<div style="white-space: pre-wrap; word-break: break-word; max-width: 500px;">{text}</div>'
+
+allocation_table = []
 for stock in portfolio:
-    st.markdown(f"**{stock['symbol']}**: {generate_explanation(stock)}")
+    allocation_table.append({
+        "Symbol": stock["symbol"],
+        "Allocation ($)": f"${stock['allocation']:,.2f}",
+        "Score": f"{stock['score']:.4f}",
+        "Explanation": wrap_text_cell(generate_explanation(stock))
+    })
+
+df_alloc = pd.DataFrame(allocation_table)
+
+# Custom CSS for wider table and wrapped text
+st.markdown("""
+<style>
+table {width:100% !important;}
+th, td {padding: 8px !important; vertical-align:top !important;}
+td div {white-space: pre-wrap; word-break: break-word; max-width: 500px;}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown(
+    df_alloc.to_html(escape=False, index=False),
+    unsafe_allow_html=True
+)
 
 from src.strategy.portfolio import buy_portfolio, get_portfolio_snapshot, reset_portfolio, create_portfolio_table
 
@@ -111,14 +187,13 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("💸 Simulate Buy Top Picks"):
         buy_portfolio(portfolio)
-        st.success("Bought top picks! Refresh the dashboard to see your holdings.")
+        st.success("Bought top picks! Refreshing dashboard...")
+        rerun()
 with col2:
     if st.button("🗑️ Reset Portfolio"):
         reset_portfolio()
-        st.success("Simulated portfolio reset. Refresh to verify.")
-
-# Optionally, add explanations for portfolio performance, Sharpe ratio, etc. in future!
-
+        st.success("Simulated portfolio reset. Refreshing dashboard...")
+        rerun()
 
 from src.strategy.portfolio import get_portfolio_performance
 
@@ -135,7 +210,6 @@ if performance:
     """)
 else:
     st.info("Not enough data to calculate portfolio analytics yet.")
-
 
 if st.button("🔄 Refresh Data"):
     st.session_state.last_refresh = datetime.now()
