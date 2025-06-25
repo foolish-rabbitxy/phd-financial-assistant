@@ -152,3 +152,20 @@ def get_portfolio_performance():
         "end_value": round(values[-1], 2),
         "num_days": len(days)
     }
+
+# Add to src/strategy/portfolio.py or as a new function in engine.py
+
+def compute_live_portfolio_performance(holdings):
+    """
+    Calculate performance metrics for the Alpaca portfolio.
+    This is a placeholder for your analytics logic.
+    """
+    # Example: total market value, unrealized PL, etc.
+    total_market_value = sum(h.get("market_value", 0) for h in holdings)
+    total_unrealized_pl = sum(h.get("unrealized_pl", 0) for h in holdings)
+    # Add more as desired
+    return {
+        "total_market_value": round(total_market_value, 2),
+        "total_unrealized_pl": round(total_unrealized_pl, 2),
+        "num_positions": len(holdings)
+    }

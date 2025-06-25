@@ -55,6 +55,30 @@ def get_price_history(symbol, days=30):
     # Return pandas Series with timestamps as index, close price as values
     return pd.Series(df["close"].values, index=pd.to_datetime(df["timestamp"]))
 
+# Add to src/trading/alpaca_client.py
+
+def get_alpaca_portfolio():
+    """
+    Returns a list of dicts: [{"symbol": "AAPL", "qty": 3, "market_value": 501.20, ...}]
+    """
+    try:
+        positions = api.list_positions()
+        holdings = []
+        for pos in positions:
+            holdings.append({
+                "symbol": pos.symbol,
+                "qty": float(pos.qty),
+                "market_value": float(pos.market_value),
+                "avg_entry_price": float(pos.avg_entry_price),
+                "current_price": float(pos.current_price),
+                "unrealized_pl": float(pos.unrealized_pl),
+                "side": pos.side,
+            })
+        return holdings
+    except Exception as e:
+        print(f"Error fetching Alpaca portfolio: {e}")
+        return []
+
 
 def submit_order(symbol: str, qty: int, side: str = "buy", type_: str = "market", time_in_force: str = "gtc"):
     """
@@ -80,6 +104,39 @@ def submit_order(symbol: str, qty: int, side: str = "buy", type_: str = "market"
     except Exception as e:
         print(f"Error submitting order for {symbol}: {e}")
         return None
+
+# src/trading/alpaca_client.py
+
+def buy_top_picks_with_alpaca(portfolio):
+    """
+    Buys each stock in the portfolio with Alpaca paper trading.
+    Expects a list of dicts: [{"symbol": ..., "allocation": ...}, ...]
+    Buys whole shares with the allocated dollar amount.
+    """
+    results = []
+    for stock in portfolio:
+        symbol = stock["symbol"]
+        allocation = stock["allocation"]
+        # Get current price
+        try:
+            latest = get_latest_price(symbol)
+            if not latest or not latest.get("price"):
+                raise ValueError(f"No price for {symbol}")
+            price = latest["price"]
+            qty = int(allocation // price)
+            if qty < 1:
+                results.append(f"Skipped {symbol}: allocation too low for 1 share at ${price:.2f}")
+                continue
+            # Place market order
+            order = submit_order(symbol, qty, side="buy")
+            if order:
+                results.append(f"✅ Bought {qty} {symbol} at market")
+            else:
+                results.append(f"❌ Failed to buy {symbol}")
+        except Exception as e:
+            results.append(f"❌ Error with {symbol}: {e}")
+    return results
+
 
 from alpaca_trade_api.rest import TimeFrame
 

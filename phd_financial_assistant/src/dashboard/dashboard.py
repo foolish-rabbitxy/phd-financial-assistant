@@ -7,6 +7,7 @@ from datetime import datetime
 import pandas as pd
 from streamlit import rerun
 import os
+from src.trading.alpaca_client import buy_top_picks_with_alpaca, get_alpaca_portfolio
 
 st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide")
 st.title("📈 AI Financial Assistant")
@@ -83,6 +84,14 @@ except Exception as e:
 finally:
     conn.close()
 
+st.sidebar.title("📂 Navigation")
+st.sidebar.markdown("- [Home](#)")
+st.sidebar.markdown("- [Top Picks](#top-picks)")
+st.sidebar.markdown("- [Suggested Allocation](#suggested-allocation)")
+st.sidebar.markdown("- [Explanations](#explanation-for-each-pick)")
+st.sidebar.markdown("- [Refresh Data](#)")
+st.sidebar.markdown("- [Contact](#contact)")
+
 filtered_symbols = None
 if df is not None:
     st.sidebar.header("🔎 Filter Stocks")
@@ -118,7 +127,7 @@ if not ranked:
 def make_html_link(name, url):
     return f'<a href="{url}" target="_blank">{name}</a>'
 
-st.subheader("🏆 Top Picks")
+st.subheader("🏆 Top 10 Overall Picks")
 table_data = []
 for s in ranked[:10]:
     table_data.append({
@@ -140,7 +149,7 @@ st.markdown(
 )
 
 # --- Wrapped Allocation & Explanation Table ---
-st.subheader(f"📝 Suggested Allocation & Rationale (${allocation:,.2f})")
+st.subheader(f"📝 Suggested Allocation Top 5 Picks & Rationale (Suggested Allocation Amount (USD): ${allocation:,.2f})")
 
 def wrap_text_cell(text):
     # Ensures long explanations wrap in the table
@@ -183,17 +192,44 @@ if not portfolio_df.empty:
 else:
     st.info("No simulated portfolio yet. Click below to 'buy' the latest picks.")
 
-col1, col2 = st.columns(2)
+# --- Combined Button Section (unique keys!) ---
+col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("💸 Simulate Buy Top Picks"):
+    if st.button("💸 Simulate Buying Suggested Allocation Top 5 Picks", key="simulate_buy"):
         buy_portfolio(portfolio)
         st.success("Bought top picks! Refreshing dashboard...")
-        rerun()
+        st.rerun()
 with col2:
-    if st.button("🗑️ Reset Portfolio"):
+    if st.button("🗑️ Reset Simulated Portfolio Holdings", key="reset_portfolio"):
         reset_portfolio()
         st.success("Simulated portfolio reset. Refreshing dashboard...")
-        rerun()
+        st.rerun()
+with col3:
+    if st.button("🤖 Buy Top Picks with Alpaca Paper Trading", key="alpaca_buy"):
+        results = buy_top_picks_with_alpaca(portfolio)
+        for line in results:
+            st.info(line)
+        st.success("Orders submitted to Alpaca! Refresh the Alpaca portfolio section below in a moment.")
+        st.rerun()
+
+# --- Alpaca Live Portfolio Section ---
+st.subheader("🤖 Alpaca Paper Trading Portfolio - Positions (Live)")
+alpaca_port = get_alpaca_portfolio()
+if alpaca_port:
+    df_alpaca = pd.DataFrame(alpaca_port)
+    st.dataframe(df_alpaca)
+else:
+    st.info("No live positions found in your Alpaca paper trading account.")
+
+from src.strategy.portfolio import compute_live_portfolio_performance
+
+if alpaca_port:
+    perf = compute_live_portfolio_performance(alpaca_port)
+    st.markdown(f"""
+    - **Total Market Value:** ${perf['total_market_value']}
+    - **Total Unrealized P/L:** ${perf['total_unrealized_pl']}
+    - **Positions:** {perf['num_positions']}
+    """)
 
 from src.strategy.portfolio import get_portfolio_performance
 
@@ -216,13 +252,7 @@ if st.button("🔄 Refresh Data"):
     st.success("Data refreshed successfully!")
     st.rerun()
 
-st.sidebar.title("📂 Navigation")
-st.sidebar.markdown("- [Home](#)")
-st.sidebar.markdown("- [Top Picks](#top-picks)")
-st.sidebar.markdown("- [Suggested Allocation](#suggested-allocation)")
-st.sidebar.markdown("- [Explanations](#explanation-for-each-pick)")
-st.sidebar.markdown("- [Refresh Data](#)")
-st.sidebar.markdown("- [Contact](#contact)")
+
 
 st.markdown("""
 <style>
@@ -232,7 +262,6 @@ footer {
     width: 100%;
     text-align: center;
     padding: 10px;
-    background-color: #f1f1f1;
     font-size: 14px;
 }
 </style>
