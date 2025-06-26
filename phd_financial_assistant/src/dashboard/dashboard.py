@@ -291,11 +291,57 @@ if alpaca_analytics:
 else:
     st.info("Not enough price history to calculate Alpaca portfolio analytics yet.")
 
-
 if st.button("🔄 Refresh Data"):
     st.session_state.last_refresh = datetime.now()
     st.success("Data refreshed successfully!")
     st.rerun()
+
+import matplotlib.pyplot as plt
+
+from src.strategy.portfolio import build_alpaca_portfolio_history
+
+st.subheader("📉 Alpaca Portfolio Value Over Time")
+history = build_alpaca_portfolio_history()
+if history is not None and "portfolio_value" in history.columns:
+    fig, ax = plt.subplots(figsize=(8,3))
+    history["portfolio_value"].plot(ax=ax, label="Portfolio Value ($)", color="dodgerblue")
+    ax.set_ylabel("Portfolio Value ($)")
+    ax.set_xlabel("Date")
+    ax.set_title("Equity Curve")
+    ax.legend()
+    st.pyplot(fig)
+else:
+    st.info("Not enough history to show Alpaca portfolio value chart yet.")
+
+import numpy as np
+
+st.subheader("📊 Alpaca Portfolio Allocation")
+if alpaca_port and isinstance(alpaca_port, list) and len(alpaca_port) > 0:
+    alloc = {pos["symbol"]: float(pos["market_value"]) for pos in alpaca_port if float(pos.get("market_value",0)) > 0}
+    if alloc:
+        fig2, ax2 = plt.subplots(figsize=(5, 5))
+        ax2.pie(list(alloc.values()), labels=list(alloc.keys()), autopct="%1.1f%%", startangle=90)
+        ax2.axis('equal')
+        ax2.set_title("Portfolio Allocation")
+        st.pyplot(fig2)
+    else:
+        st.info("No active Alpaca positions to show allocation.")
+else:
+    st.info("No active Alpaca positions to show allocation.")
+
+import pandas as pd
+
+st.subheader("⬇️ Download Alpaca Positions as CSV")
+if alpaca_port:
+    df_alpaca = pd.DataFrame(alpaca_port)
+    csv = df_alpaca.to_csv(index=False)
+    st.download_button(
+        label="Download CSV",
+        data=csv,
+        file_name="alpaca_positions.csv",
+        mime="text/csv",
+    )
+
 
 st.markdown("""
 <style>
