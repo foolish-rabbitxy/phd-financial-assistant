@@ -1,15 +1,11 @@
 # src/dashboard/dashboard.py
-
 import streamlit as st
-from src.strategy.engine import (
-    load_candidates, filter_and_score, allocate_portfolio,
-    generate_explanation, enrich_sentiment
-)
 import sqlite3
 from datetime import datetime
 import pandas as pd
 import os
 from src.trading.alpaca_client import buy_top_picks_with_alpaca, get_alpaca_portfolio, get_recent_alpaca_orders
+from src.strategy.engine import load_candidates, filter_and_score, allocate_portfolio, generate_explanation, enrich_sentiment
 
 st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide")
 st.title("📈 AI Financial Assistant")

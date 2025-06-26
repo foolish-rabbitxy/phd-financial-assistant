@@ -111,19 +111,50 @@ def allocate_portfolio(ranked: List[Dict], budget: float = 1000.0) -> List[Dict]
     return portfolio
 
 def generate_explanation(stock):
-    def fmt(val, pct=False):
-        if val is None: return "N/A"
-        if pct: return f"{val:.2f}%"
-        if isinstance(val, float): return f"${val:,.2f}"
+    """
+    Generate an HTML-formatted explanation for a stock's selection, summarizing its key metrics and sentiment.
+
+    Args:
+        stock (dict): A dictionary containing stock data and computed metrics.
+
+    Returns:
+        str: An HTML string explaining the rationale for the stock's selection.
+    """
+
+VOLATILITY_LOW_THRESHOLD = 2.0  # Define a threshold for low volatility (in percent)
+
+def generate_explanation(stock):
+    def fmt(val, pct=False, currency=False):
+        if val is None:
+            return "N/A"
+        if pct:
+            return f"{val:.2f}%" if val is not None else "N/A"
+        if currency:
+            return f"${val:,.2f}"
+        if isinstance(val, float):
+            return f"{val:,.2f}"
         return str(val)
-    sentiment_desc = (
-        f"{stock.get('avg_sentiment', 0):.2f} "
-        + ("(positive)" if stock.get("avg_sentiment", 0) > 0.1 else "neutral" if abs(stock.get("avg_sentiment", 0)) < 0.1 else "(negative)")
-    )
+    avg_sentiment = stock.get('avg_sentiment', 0)
+    if avg_sentiment > 0.1:
+        sentiment_label = "(positive)"
+        sentiment_summary = "strong positive news sentiment"
+    elif abs(avg_sentiment) < 0.1:
+        sentiment_label = "(neutral)"
+        sentiment_summary = "neutral news sentiment"
+    else:
+        sentiment_label = "(negative)"
+        sentiment_summary = "negative news sentiment"
+    volatility = stock.get('volatility_30d', 0)
+    if volatility is None:
+        volatility = 0
+    volatility_label = 'low' if volatility < VOLATILITY_LOW_THRESHOLD else 'high'
+    sentiment_desc = f"{avg_sentiment:.2f} {sentiment_label}"
+    volatility = stock.get('volatility_30d', 0)
+    volatility_label = 'low' if volatility < VOLATILITY_LOW_THRESHOLD else 'high'
     html = (
         f"<strong>Symbol:</strong> {stock['symbol']}<br>"
         f"<strong>Sector/Industry:</strong> {stock.get('sector','N/A')} / {stock.get('industry','N/A')}<br>"
-        f"<strong>Market Cap:</strong> {fmt(stock.get('market_cap'))}<br>"
+        f"<strong>Market Cap:</strong> {fmt(stock.get('market_cap'), currency=True)}<br>"
         f"<strong>P/E Ratio:</strong> {fmt(stock.get('pe_ratio'))}<br>"
         f"<strong>Dividend Yield:</strong> {fmt(stock.get('dividend_yield'), pct=True)}<br>"
         f"<strong>30d Return:</strong> {fmt(stock.get('return_30d'), pct=True)}<br>"
@@ -131,8 +162,8 @@ def generate_explanation(stock):
         f"<strong>Sentiment Score:</strong> {sentiment_desc}<br>"
         f"<strong>Summary:</strong> Selected due to attractive P/E ratio ({fmt(stock.get('pe_ratio'))}), "
         f"solid dividend yield ({fmt(stock.get('dividend_yield'), pct=True)}), "
-        f"{'strong positive news sentiment' if stock.get('avg_sentiment', 0) > 0.1 else 'neutral news sentiment' if abs(stock.get('avg_sentiment', 0)) < 0.1 else 'negative news sentiment'}, "
-        f"and {'low' if stock.get('volatility_30d', 0) < 3 else 'high'} recent volatility ({fmt(stock.get('volatility_30d'), pct=True)})."
+        f"{sentiment_summary}, "
+        f"and {volatility_label} recent volatility ({fmt(stock.get('volatility_30d'), pct=True)})."
     )
     return html
 
