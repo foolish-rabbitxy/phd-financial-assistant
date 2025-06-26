@@ -38,16 +38,22 @@ def build_alpaca_portfolio_history():
                     qty = 0
         if sym in price_histories:
             s = price_histories[sym]
-            # Fill forward last price for missing dates
-            s = s.reindex(history.index, method='ffill')
+            # Align series to the DataFrame index (do not fill yet)
+            s = s.reindex(history.index)
             history[sym] = s * qty
+
+    # Fill forward missing prices for all symbols at once
+    history = history.fillna(method='ffill')
 
     # Add up all positions for total value per day
     history["portfolio_value"] = history.sum(axis=1)
     return history
 
 def compute_alpaca_portfolio_analytics():
-    """Returns dict with total_return, annual_volatility, sharpe_ratio, etc."""
+    """
+    Returns dict with total_return (percent), annual_volatility (percent), sharpe_ratio, etc.
+    Note: annual_volatility is reported as a percentage, matching the calculation.
+    """
     hist = build_alpaca_portfolio_history()
     if hist is None or hist["portfolio_value"].isnull().all():
         return None
@@ -59,13 +65,13 @@ def compute_alpaca_portfolio_analytics():
     values = hist["portfolio_value"]
     returns = values.pct_change().dropna()
     total_return = (values.iloc[-1] / values.iloc[0] - 1) * 100
-    annual_volatility = returns.std() * (252**0.5) * 100
+    annual_volatility = returns.std() * (252**0.5) * 100  # percent
     sharpe = (returns.mean() / returns.std()) * (252**0.5) if returns.std() > 0 else None
-
+    
     return {
         "total_return": round(total_return, 2),
-        "annual_volatility": round(annual_volatility, 2) if annual_volatility else "N/A",
-        "sharpe_ratio": round(sharpe, 2) if sharpe else "N/A",
+        "annual_volatility": f"{round(annual_volatility, 2)}%" if annual_volatility else "N/A",
+        "sharpe_ratio": round(sharpe, 2) if sharpe is not None else "N/A",
         "start_value": round(values.iloc[0], 2),
         "end_value": round(values.iloc[-1], 2),
         "num_days": len(values),
@@ -104,7 +110,7 @@ def buy_portfolio(picks, buy_date=None):
         if price_df.empty:
             continue
         price = price_df['close'].iloc[0]
-        qty = int(allocation // price)
+        qty = int(allocation / price)
         if qty <= 0:
             continue
         # Insert the "buy"
@@ -237,3 +243,67 @@ def compute_live_portfolio_performance(holdings):
         "total_unrealized_pl": round(total_unrealized_pl, 2),
         "num_positions": len(holdings)
     }
+
+
+from src.trading.alpaca_client import submit_order
+
+def rebalance_alpaca_portfolio(suggested_allocation, min_diff=5.0):
+    """
+    Automatically trades Alpaca paper account to match the suggested allocation.
+
+    WARNING: This function performs live trades via submit_order and will modify the Alpaca paper account.
+
+    - suggested_allocation: list of dicts with 'symbol', 'allocation' (target $ amount)
+    - min_diff: Minimum $ difference to trigger trade
+    Returns list of actions taken.
+    """
+    current_port = get_alpaca_portfolio()
+    current_holdings = {p['symbol']: float(p['market_value']) for p in current_port}
+    actions = []
+
+    # Step 1: For each symbol in target allocation, determine buy/sell
+    for s in suggested_allocation:
+        symbol = s['symbol']
+        target_amt = s['allocation']
+        current_amt = current_holdings.get(symbol, 0.0)
+        diff = target_amt - current_amt
+
+        if abs(diff) < min_diff:
+            continue  # Skip minor adjustments
+
+        price = s.get('last_price') or s.get('price') or 0
+        if price <= 0:
+            continue  # No valid price, can't trade
+
+        qty = calculate_trade_quantity(diff, price)
+        if qty < 1:
+            continue
+
+        if diff > 0:
+            submit_order(symbol, qty, side='buy')
+            actions.append(f"BUY {qty} shares of {symbol} (need +${diff:.2f})")
+        elif diff < 0:
+            submit_order(symbol, qty, side='sell')
+            actions.append(f"SELL {qty} shares of {symbol} (over by ${-diff:.2f})")
+
+    # Step 2: Close out any positions not in target
+    target_symbols = {s['symbol'] for s in suggested_allocation}
+    for sym in current_holdings:
+        if sym not in target_symbols:
+            qty = int(float(next((p['qty'] for p in current_port if p['symbol']==sym), 0)))
+            if qty > 0:
+                submit_order(sym, qty, side='sell')
+                actions.append(f"SELL ALL {qty} shares of {sym} (not in target picks)")
+
+    if not actions:
+        actions.append("No trades needed. Portfolio already matches suggested allocation.")
+
+        return actions
+    
+    def calculate_trade_quantity(diff, price):
+        """
+        Helper function to calculate the number of shares to trade based on the dollar difference and price.
+        """
+        if price <= 0:
+            return 0
+        return int(abs(diff) // price)

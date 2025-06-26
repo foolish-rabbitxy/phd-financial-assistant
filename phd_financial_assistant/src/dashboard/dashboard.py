@@ -6,6 +6,7 @@ import pandas as pd
 import os
 from src.trading.alpaca_client import buy_top_picks_with_alpaca, get_alpaca_portfolio, get_recent_alpaca_orders
 from src.strategy.engine import load_candidates, filter_and_score, allocate_portfolio, generate_explanation, enrich_sentiment
+from src.strategy.portfolio import rebalance_alpaca_portfolio
 
 st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide")
 st.title("📈 AI Financial Assistant")
@@ -213,6 +214,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+""" Commented out for now, as it is not used in the current version of the dashboard
+# --- Simulated Portfolio Holdings Section ---
+
 # Simulated Portfolio Holdings
 from src.strategy.portfolio import buy_portfolio, get_portfolio_snapshot, reset_portfolio, create_portfolio_table
 create_portfolio_table()
@@ -228,14 +232,14 @@ else:
 col1, col2 = st.columns(2)
 with col1:
     if st.button("💸 Simulate Buying Suggested Allocation Top 5 Picks", key="simulate_buy"):
-        buy_portfolio(portfolio)
+        buy_portfolio(portfolio[:5])
         st.success("Bought top picks! Refreshing dashboard...")
         st.rerun()
 with col2:
     if st.button("🗑️ Reset Simulated Portfolio Holdings", key="reset_portfolio"):
         reset_portfolio()
         st.success("Simulated portfolio reset. Refreshing dashboard...")
-        st.rerun()
+        st.rerun() """
 
 # --- Alpaca Live Portfolio Section ---
 st.subheader("🤖 Alpaca Paper Trading Portfolio - Positions (Live)")
@@ -257,14 +261,29 @@ if alpaca_port:
     """)
 
 # --- Combined Button Section (unique keys!) ---
-col3, = st.columns(1)
+col3, col4 = st.columns(2)
 with col3:
     if st.button("🤖 Buy Top Picks with Alpaca Paper Trading", key="alpaca_buy"):
         results = buy_top_picks_with_alpaca(portfolio)
-        for line in results:
-            st.info(line)
-        st.success("Orders submitted to Alpaca! Refresh the Alpaca portfolio section below in a moment.")
+        if results and hasattr(results, "__iter__"):
+            for line in results:
+                st.info(line)
+            st.success("Orders submitted to Alpaca! Refresh the Alpaca portfolio section below in a moment.")
+        else:
+            st.warning("No orders were submitted or an error occurred.")
         st.rerun()
+with col4:
+    if st.button("🔁 Rebalance Alpaca Portfolio to Model", key="rebalance"):
+        st.warning("This will place market orders to match your model's suggested allocation. Are you sure?")
+        if st.button("✅ Yes, rebalance now", key="confirm_rebalance"):
+            actions = rebalance_alpaca_portfolio(portfolio)  # 'portfolio' is your suggested allocation list
+            if actions:
+                for act in actions:
+                    st.info(act)
+                st.success("Rebalancing submitted! Wait a moment for Alpaca to update positions.")
+            else:
+                st.info("No rebalancing actions were necessary or an error occurred.")
+            st.rerun()
 
 # --- Alpaca Recent Orders Section ---
 st.subheader("📝 Recent Alpaca Paper Trading Orders")
