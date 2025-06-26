@@ -12,13 +12,23 @@ st.set_page_config(page_title="📊 Financial Assistant Dashboard", layout="wide
 st.title("📈 AI Financial Assistant")
 
 st.markdown("""
-<div style="padding: 16px; border: 0px solid #e0e0e0; border-radius: 8px; background-color: #ccc;">
+<div>
 <strong>Legend:</strong><br>
-<b>P/E:</b> <i>Price-to-Earnings ratio</i> – how much investors are willing to pay per dollar of company earnings.<br>
-<b>Yield:</b> <i>Dividend Yield (%)</i> – how much a company pays in dividends each year as a percentage of its stock price.<br>
-<b>Sentiment:</b> <i>News Sentiment Score</i> – a measure of recent news positivity (positive, neutral, or negative) about the stock.<br>
-<b>30d Return:</b> <i>30-Day Price Change (%)</i> – the percent gain or loss in stock price over the past 30 days.<br>
-<b>Volatility:</b> <i>30-Day Volatility (%)</i> – how much the stock price has fluctuated over the last 30 days (higher = riskier, lower = more stable).
+    <ul>
+        <li><b>RF Score:</b> <i>RandomForest model's prediction</i> – a machine learning score predicting future stock potential; higher is better.</li>
+        <li><b>XGB Score:</b> <i>XGBoost model's prediction</i> – an advanced machine learning score for stock ranking; higher is better.</li>
+        <li><b>P/E:</b> <i>Price-to-Earnings ratio</i> – This tells you how much investors are willing to pay today for $1 of a company’s earnings. It is calculated as the current stock price divided by earnings per share (EPS).
+            <ul>
+                <li><b>Low P/E</b> (relative to sector) can suggest a stock is undervalued or that the company’s growth prospects are modest.</li>
+                <li><b>High P/E</b> can indicate strong expected future growth, but can also mean the stock is overpriced.</li>
+                <li>Compare P/E ratios within the same industry for best results.</li>
+            </ul>
+        </li>
+        <li><b>Yield:</b> <i>Dividend Yield (%)</i> – how much a company pays in dividends each year as a percentage of its stock price.</li>
+        <li><b>Sentiment:</b> <i>News Sentiment Score</i> – a measure of recent news positivity (positive, neutral, or negative) about the stock.</li>
+        <li><b>30d Return:</b> <i>30-Day Price Change (%)</i> – the percent gain or loss in stock price over the past 30 days.</li>
+        <li><b>Volatility:</b> <i>30-Day Volatility (%)</i> – how much the stock price has fluctuated over the last 30 days (higher = riskier, lower = more stable).</li>
+    </ul>
 </div>
 """, unsafe_allow_html=True)
 
@@ -143,6 +153,8 @@ for i, s in enumerate(ranked[:10], 1):
         "Rank": i,
         "Symbol": s["symbol"],
         "Score": s["score"],
+        "RF Score": round(s["rf_score"], 4) if s.get("rf_score") is not None else None,
+        "XGB Score": round(s["xgb_score"], 4) if s.get("xgb_score") is not None else None,
         "P/E": s["pe_ratio"],
         "Yield": s["dividend_yield"],
         "Sentiment": s.get("avg_sentiment", 0),
@@ -185,7 +197,9 @@ for i, stock in enumerate(portfolio[:5], 1):
         "Symbol": stock["symbol"],
         "Allocation ($)": f"${stock['allocation']:,.2f}",
         "Score": f"{stock['score']:.4f}",
-        "Explanation": generate_explanation(stock)  # Should return formatted HTML or plain text
+        "RF Score": round(stock["rf_score"], 4) if stock.get("rf_score") is not None else None,
+        "XGB Score": round(stock["xgb_score"], 4) if stock.get("xgb_score") is not None else None,
+        "Explanation": generate_explanation(stock)
     })
 df_alloc = pd.DataFrame(allocation_table)
 
@@ -213,33 +227,6 @@ st.markdown(
     df_alloc_html.to_html(escape=False, index=False),
     unsafe_allow_html=True
 )
-
-""" Commented out for now, as it is not used in the current version of the dashboard
-# --- Simulated Portfolio Holdings Section ---
-
-# Simulated Portfolio Holdings
-from src.strategy.portfolio import buy_portfolio, get_portfolio_snapshot, reset_portfolio, create_portfolio_table
-create_portfolio_table()
-
-st.subheader("📦 Simulated Portfolio Holdings")
-portfolio_df = get_portfolio_snapshot()
-if not portfolio_df.empty:
-    st.dataframe(portfolio_df)
-else:
-    st.info("No simulated portfolio yet. Click below to 'buy' the latest picks.")
-
-# --- Combined Button Section (unique keys!) ---
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("💸 Simulate Buying Suggested Allocation Top 5 Picks", key="simulate_buy"):
-        buy_portfolio(portfolio[:5])
-        st.success("Bought top picks! Refreshing dashboard...")
-        st.rerun()
-with col2:
-    if st.button("🗑️ Reset Simulated Portfolio Holdings", key="reset_portfolio"):
-        reset_portfolio()
-        st.success("Simulated portfolio reset. Refreshing dashboard...")
-        st.rerun() """
 
 # --- Alpaca Live Portfolio Section ---
 st.subheader("🤖 Alpaca Paper Trading Portfolio - Positions (Live)")

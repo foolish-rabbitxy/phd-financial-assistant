@@ -8,6 +8,12 @@ from sklearn.metrics import mean_squared_error
 import joblib
 import time
 
+# Add XGBoost import
+try:
+    from xgboost import XGBRegressor
+except ImportError:
+    raise ImportError("Please install xgboost: pip install xgboost")
+
 # Ensure the model directory exists
 os.makedirs("model", exist_ok=True) 
 # Ensure the local_db directory exists
@@ -76,20 +82,27 @@ def load_training_data():
     return train_test_split(features, target, test_size=0.2, random_state=42)
 
 
-# Train model
+# Train models
 X_train, X_test, y_train, y_test = load_training_data()
 
-model = RandomForestRegressor(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
+# --- RandomForest ---
+rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+rf_preds = rf_model.predict(X_test)
+rf_rmse = np.sqrt(mean_squared_error(y_test, rf_preds))
+print(f"✅ RandomForest Model trained. RMSE = {rf_rmse:.4f}")
 
-preds = model.predict(X_test)
-rmse = np.sqrt(mean_squared_error(y_test, preds))
+# Save RandomForest model
+joblib.dump(rf_model, "model/stock_score_model.pkl")
+print("✅ RandomForest Model saved to model/stock_score_model.pkl")
 
-print(f"✅ Model trained. RMSE = {rmse:.4f}")
+# --- XGBoost ---
+xgb_model = XGBRegressor(n_estimators=100, max_depth=3, random_state=42, use_label_encoder=False, eval_metric='rmse')
+xgb_model.fit(X_train, y_train)
+xgb_preds = xgb_model.predict(X_test)
+xgb_rmse = np.sqrt(mean_squared_error(y_test, xgb_preds))
+print(f"✅ XGBoost Model trained. RMSE = {xgb_rmse:.4f}")
 
-# Ensure model directory exists
-os.makedirs("model", exist_ok=True)
-
-# Save model
-joblib.dump(model, "model/stock_score_model.pkl")
-print("✅ Model saved to model/stock_score_model.pkl")
+# Save XGBoost model
+joblib.dump(xgb_model, "model/xgb_stock_score_model.pkl")
+print("✅ XGBoost Model saved to model/xgb_stock_score_model.pkl")

@@ -21,3 +21,4 @@ nltk
 textblob
 vaderSentiment
 feedparser
+xgboost

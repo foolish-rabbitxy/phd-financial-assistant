@@ -6,10 +6,11 @@ import joblib
 import os
 import pandas as pd
 
-MODEL_PATH = "model/stock_score_model.pkl"
-model = None
-if os.path.exists(MODEL_PATH):
-    model = joblib.load(MODEL_PATH)
+rf_model_path = "model/stock_score_model.pkl"
+xgb_model_path = "model/xgb_stock_score_model.pkl"
+
+rf_model = joblib.load(rf_model_path) if os.path.exists(rf_model_path) else None
+xgb_model = joblib.load(xgb_model_path) if os.path.exists(xgb_model_path) else None
 
 def load_candidates(symbols: List[str] = None) -> List[Dict]:
     conn = sqlite3.connect("local_db/market_data.db")
@@ -58,15 +59,27 @@ def filter_and_score(candidates: List[Dict]) -> List[Dict]:
         if stock["dividend_yield"] is not None and stock["dividend_yield"] < 0.01:
             continue
 
+        # Get features for the model
         pe = stock["pe_ratio"]
         div = stock["dividend_yield"] or 0
+        mcap = stock.get("market_cap", 0)
         sentiment = stock.get("avg_sentiment", 0) or 0
+
+        columns = ["pe_ratio", "dividend_yield", "market_cap", "sentiment"]
+        features_df = pd.DataFrame([[pe, div, mcap, sentiment]], columns=columns)
+        
+        # Predict with both models with DataFrame if available
+        rf_score = float(rf_model.predict(features_df)[0]) if rf_model else None
+        xgb_score = float(xgb_model.predict(features_df)[0]) if xgb_model else None
+
+        # Add scores to stock
+        stock["rf_score"] = rf_score
+        stock["xgb_score"] = xgb_score
 
         # Add historical return/volatility if available
         try:
             from src.trading.alpaca_client import get_price_history
             series = get_price_history(stock["symbol"], days=30)
-            # series should be a pandas Series of prices
             if series is not None and hasattr(series, "__len__") and len(series) >= 2:
                 pct_return = (series.iloc[-1] - series.iloc[0]) / series.iloc[0]
                 volatility = series.pct_change().std()
@@ -75,30 +88,24 @@ def filter_and_score(candidates: List[Dict]) -> List[Dict]:
             else:
                 stock["return_30d"] = None
                 stock["volatility_30d"] = None
-        except Exception as e:
+        except Exception:
             stock["return_30d"] = None
             stock["volatility_30d"] = None
 
-        # ML-based prediction or fallback score
-        score = 0
-        if model:
-            feature_df = pd.DataFrame([{
-                "pe_ratio": pe,
-                "dividend_yield": div,
-                "market_cap": stock.get("market_cap", 0),
-                "sentiment": sentiment
-            }])
-            score = float(model.predict(feature_df)[0])
+        # Main score for allocation & ranking
+        if xgb_score is not None:
+            score = xgb_score
+        elif rf_score is not None:
+            score = rf_score
         else:
-            # Fallback: simple scoring
             score = 0.05 * (1 / pe) + 0.1 * div + sentiment
 
         stock["score"] = round(score, 4)
         filtered.append(stock)
 
-    # Filter out stocks with no score
-    filtered = [s for s in filtered if "score" in s and s["score"] is not None]
-    return sorted(filtered, key=lambda x: x["score"], reverse=True)
+    # Sort by XGBoost score (or fallback)
+    filtered = sorted(filtered, key=lambda x: x["xgb_score"] if x["xgb_score"] is not None else -float("inf"), reverse=True)
+    return filtered
 
 def allocate_portfolio(ranked: List[Dict], budget: float = 1000.0) -> List[Dict]:
     total_score = sum(stock["score"] for stock in ranked[:5]) or 1.0
@@ -110,18 +117,7 @@ def allocate_portfolio(ranked: List[Dict], budget: float = 1000.0) -> List[Dict]
         portfolio.append(entry)
     return portfolio
 
-def generate_explanation(stock):
-    """
-    Generate an HTML-formatted explanation for a stock's selection, summarizing its key metrics and sentiment.
-
-    Args:
-        stock (dict): A dictionary containing stock data and computed metrics.
-
-    Returns:
-        str: An HTML string explaining the rationale for the stock's selection.
-    """
-
-VOLATILITY_LOW_THRESHOLD = 2.0  # Define a threshold for low volatility (in percent)
+VOLATILITY_LOW_THRESHOLD = 2.0
 
 def generate_explanation(stock):
     def fmt(val, pct=False, currency=False):
@@ -149,8 +145,6 @@ def generate_explanation(stock):
         volatility = 0
     volatility_label = 'low' if volatility < VOLATILITY_LOW_THRESHOLD else 'high'
     sentiment_desc = f"{avg_sentiment:.2f} {sentiment_label}"
-    volatility = stock.get('volatility_30d', 0)
-    volatility_label = 'low' if volatility < VOLATILITY_LOW_THRESHOLD else 'high'
     html = (
         f"<strong>Symbol:</strong> {stock['symbol']}<br>"
         f"<strong>Sector/Industry:</strong> {stock.get('sector','N/A')} / {stock.get('industry','N/A')}<br>"
@@ -160,10 +154,11 @@ def generate_explanation(stock):
         f"<strong>30d Return:</strong> {fmt(stock.get('return_30d'), pct=True)}<br>"
         f"<strong>30d Volatility:</strong> {fmt(stock.get('volatility_30d'), pct=True)}<br>"
         f"<strong>Sentiment Score:</strong> {sentiment_desc}<br>"
+        f"<strong>RF Score:</strong> {fmt(stock.get('rf_score'))}<br>"
+        f"<strong>XGB Score:</strong> {fmt(stock.get('xgb_score'))}<br>"
         f"<strong>Summary:</strong> Selected due to attractive P/E ratio ({fmt(stock.get('pe_ratio'))}), "
         f"solid dividend yield ({fmt(stock.get('dividend_yield'), pct=True)}), "
         f"{sentiment_summary}, "
         f"and {volatility_label} recent volatility ({fmt(stock.get('volatility_30d'), pct=True)})."
     )
     return html
-
