@@ -86,7 +86,7 @@ if allocation is None:
     st.error("Please enter a valid positive dollar amount (e.g., 1000, 5,000, $2500.75), up to $1 billion.")
     st.stop()
 
-# --- Sidebar controls ---
+# --- Sidebar controls with Select All/None for Sector and Symbol ---
 conn = sqlite3.connect("local_db/market_data.db")
 df = None
 try:
@@ -103,28 +103,66 @@ finally:
     conn.close()
 
 st.sidebar.title("📂 Navigation")
-st.sidebar.markdown("- [Home](#)")
-st.sidebar.markdown("- [Top Picks](#top-picks)")
-st.sidebar.markdown("- [Suggested Allocation](#suggested-allocation)")
-st.sidebar.markdown("- [Explanations](#explanation-for-each-pick)")
-st.sidebar.markdown("- [Refresh Data](#)")
-st.sidebar.markdown("- [Contact](#contact)")
+st.sidebar.markdown("- [Home](#ai-financial-assistant)")
+st.sidebar.markdown("- [Top 10 Overall Picks](#top-10-overall-picks)")
+st.sidebar.markdown("- [Top 5 Picks & Rationale](#top-5-picks-and-rationale)")
+st.sidebar.markdown("- [Alpaca Paper Trading Portfolio - Positions (Live)](#alpaca-paper-trading-portfolio-positions-live)")
+st.sidebar.markdown("- [Recent Alpaca Paper Trading Orders](#recent-alpaca-paper-trading-orders)")
+st.sidebar.markdown("- [Alpaca Portfolio Analytics](#alpaca-portfolio-analytics)")
+st.sidebar.markdown("- [Alpaca Portfolio Value Over Time](#alpaca-portfolio-value-over-time)")
+st.sidebar.markdown("- [Alpaca Portfolio Allocation](#alpaca-portfolio-allocation)")
+st.sidebar.markdown("- [Download Alpaca Positions as CSV](#download-alpaca-positions-as-csv)")
 
-filtered_symbols = None
+
 if df is not None:
-    st.sidebar.header("🔎 Filter Stocks")
+    # --- Sectors ---
     all_sectors = sorted(df["sector"].dropna().unique())
-    sector = st.sidebar.multiselect("Sector", all_sectors, default=all_sectors)
-    min_cap = st.sidebar.number_input("Min Market Cap ($B)", min_value=0.0, value=0.0)
-    search = st.sidebar.text_input("Symbol search", "")
-    filtered = df[
-        (df["sector"].isin(sector)) &
-        (df["market_cap"].fillna(0) / 1e9 >= min_cap) &
-        (df["symbol"].str.contains(search.upper()))
-    ]
-    filtered_symbols = filtered["symbol"].tolist()
+    if "selected_sectors" not in st.session_state:
+        st.session_state.selected_sectors = all_sectors
+
+    selected_sectors = st.sidebar.multiselect(
+        "Sector(s)", all_sectors, default=st.session_state.selected_sectors, key="sector_multiselect"
+    )
+    st.session_state.selected_sectors = selected_sectors
+
+    col1, col2 = st.sidebar.columns(2)
+    if col1.button("Select All Sectors"):
+        st.session_state.selected_sectors = all_sectors
+        st.rerun()
+    if col2.button("Select None Sectors"):
+        st.session_state.selected_sectors = []
+        st.rerun()
+
+    # --- Symbols ---
+    all_symbols = sorted(df["symbol"].unique())
+    if "selected_symbols" not in st.session_state:
+        st.session_state.selected_symbols = []
+
+    selected_symbols = st.sidebar.multiselect(
+        "Symbol(s)", all_symbols, default=st.session_state.selected_symbols, key="symbol_multiselect"
+    )
+    st.session_state.selected_symbols = selected_symbols
+
+    col3, col4 = st.sidebar.columns(2)
+    if col3.button("Select All Symbols"):
+        st.session_state.selected_symbols = all_symbols
+        st.rerun()
+    if col4.button("Select None Symbols"):
+        st.session_state.selected_symbols = []
+        st.rerun()
 else:
-    filtered_symbols = []
+    all_sectors, all_symbols = [], []
+    st.session_state.selected_sectors, st.session_state.selected_symbols = [], []
+    selected_sectors, selected_symbols = [], []
+
+min_cap = st.sidebar.number_input("Min Market Cap ($B)", min_value=0.0, value=0.0)
+
+filtered = df[
+    (df["sector"].isin(st.session_state.selected_sectors)) &
+    ((df["symbol"].isin(st.session_state.selected_symbols)) if st.session_state.selected_symbols else True) &
+    (df["market_cap"].fillna(0) / 1e9 >= min_cap)
+]
+filtered_symbols = filtered["symbol"].tolist()
 
 # Show current timestamp with milliseconds, persistent with session_state
 if "last_refresh" not in st.session_state:
@@ -188,7 +226,12 @@ st.markdown(
 )
 
 # --- Suggested Allocation Table with Explanations (Top 5) ---
-st.subheader(f"📝 Suggested Allocation Top 5 Picks & Rationale (${allocation:,.2f})")
+st.subheader(f"📝 Top 5 Picks & Rationale")
+st.markdown("""
+    <div style="font-size: 14px; line-height: 1.6;">
+    <strong>Note:</strong> The following table shows the top 5 stocks from the model's suggested allocation, along with their scores and explanations. The allocations are based on the model's scoring system, which considers factors like P/E ratio, dividend yield, sentiment, and volatility and uses the allocation provided as the total to be divided up among these picks.
+    </div>
+""", unsafe_allow_html=True)
 
 allocation_table = []
 for i, stock in enumerate(portfolio[:5], 1):
