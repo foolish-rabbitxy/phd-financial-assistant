@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bot Scorecard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-page">
+  <form class="card login-card" method="post" action="/forgot">
+    <h1>Forgot password</h1>
+    <p class="muted">We'll email a one-time reset link to the dashboard's alert address.
+      It works for 15 minutes, from a device on your home network.</p>
+    <p class="ok hidden" id="sent">If email is set up, a reset link is on its way. Check your inbox
+      (and spam). You can request another in 5 minutes.</p>
+    <button type="submit" class="primary">Email me a reset link</button>
+    <a class="small" href="/login">Back to sign in</a>
+  </form>
+  <script src="/reset.js"></script>
+</body>
+</html>

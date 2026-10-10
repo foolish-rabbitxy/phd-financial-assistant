@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bot Scorecard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-page">
+  <form class="card login-card" method="post" action="/reset">
+    <h1>Set a new password</h1>
+    <p class="error hidden" id="err"></p>
+    <input type="hidden" name="token" id="token">
+    <label>New password <input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Repeat it <input type="password" name="password2" autocomplete="new-password" minlength="8" required></label>
+    <button type="submit" class="primary">Save new password</button>
+    <a class="small" href="/forgot">Need a new link?</a>
+  </form>
+  <script src="/reset.js"></script>
+</body>
+</html>

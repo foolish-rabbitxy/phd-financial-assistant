@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bot Scorecard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-page">
+  <form class="card login-card" method="post" action="/login">
+    <h1>Bot Scorecard</h1>
+    <p class="muted">Enter the dashboard password.</p>
+    <p class="error hidden" id="err">Wrong password — or too many tries; wait a minute.</p>
+    <p class="ok hidden" id="reset-ok">Password changed. Sign in with your new password.</p>
+    <input type="password" name="password" autocomplete="current-password" autofocus required aria-label="Password">
+    <button type="submit" class="primary">Sign in</button>
+    <a class="small" href="/forgot">Forgot password?</a>
+  </form>
+  <script src="/login.js"></script>
+</body>
+</html>

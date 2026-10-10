@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bot Scorecard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">
+      <h1>Bot Scorecard</h1>
+      <span id="verdict-pill" class="pill">…</span>
+      <span class="paper-tag">Paper account · no real money</span>
+    </div>
+    <div class="topbar-right">
+      <span id="updated" class="muted"></span>
+      <form method="post" action="/logout"><button class="ghost" type="submit">Sign out</button></form>
+    </div>
+  </header>
+
+  <main>
+    <div id="errors" class="banner hidden" role="alert"></div>
+
+    <section class="card verdict-card" id="verdict-card">
+      <div class="verdict-head">
+        <span class="badge" id="verdict-badge"></span>
+        <h2 id="verdict-text">Loading the scorecard…</h2>
+      </div>
+      <div class="windows">
+        <div class="window" id="w-open"></div>
+        <div class="window" id="w-auto"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Bot vs. the same money in the S&amp;P 500</h2>
+        <div class="seg" id="range-seg">
+          <button data-range="3m">3M</button><button data-range="1y">1Y</button><button data-range="all" class="on">All</button>
+        </div>
+      </div>
+      <figure class="chart wide-chart" id="c-compare"></figure>
+      <p class="muted small">S&amp;P 500 line = the bot's starting value for the range, invested in SPY with dividends reinvested.</p>
+    </section>
+
+    <section class="tiles" aria-label="Account status">
+      <div class="tile"><div class="tile-head"><span class="label">Account value</span></div><div class="value" id="t-equity">–</div><div class="sub" id="t-equity-sub"></div></div>
+      <div class="tile"><div class="tile-head"><span class="label">Today</span><span class="badge" id="t-today-badge"></span></div><div class="value" id="t-today">–</div><div class="sub">vs. yesterday's close</div></div>
+      <div class="tile"><div class="tile-head"><span class="label">Cash</span></div><div class="value" id="t-cash">–</div><div class="sub" id="t-cash-sub"></div></div>
+      <div class="tile"><div class="tile-head"><span class="label">Positions</span></div><div class="value" id="t-pos">–</div><div class="sub" id="t-pos-sub"></div></div>
+      <div class="tile"><div class="tile-head"><span class="label">Next autopilot run</span><span class="badge" id="t-next-badge"></span></div><div class="value small-value" id="t-next">–</div><div class="sub">rebalances to the top 5, emails a report</div></div>
+      <div class="tile"><div class="tile-head"><span class="label">Last weekly report</span></div><div class="value small-value" id="t-last">–</div><div class="sub" id="t-last-sub"></div></div>
+    </section>
+
+    <section class="card">
+      <h2>Holdings</h2>
+      <table class="pools holdings" id="holdings"></table>
+    </section>
+
+    <section class="two-col">
+      <div class="card">
+        <h2>Weekly scorecard</h2>
+        <p class="muted small">One row per Monday autopilot run, measured from its first run.</p>
+        <table class="pools" id="weekly"></table>
+      </div>
+      <div class="card">
+        <h2>Recent trades</h2>
+        <table class="pools" id="trades"></table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Today's picks</h2>
+        <span class="muted small" id="picks-meta"></span>
+      </div>
+      <h3 class="mh-sub">Next Monday's target (if picks don't change)</h3>
+      <div id="alloc" class="alloc"></div>
+      <h3 class="mh-sub">Top 10 by model score</h3>
+      <table class="pools" id="picks"></table>
+      <p class="muted small">View-only. Only the Monday autopilot trades, so the scorecard measures the bot alone.</p>
+    </section>
+
+    <section class="card">
+      <h2>Settings</h2>
+      <form id="pw-form" class="settings-form">
+        <h3>Dashboard password</h3>
+        <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
+        <label>New password <input type="password" name="new" autocomplete="new-password" minlength="8" required></label>
+        <label>Repeat new password <input type="password" name="repeat" autocomplete="new-password" minlength="8" required></label>
+        <button type="submit" class="primary">Change password</button>
+        <p class="msg" id="pw-msg" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip hidden" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
