@@ -49,7 +49,8 @@ class ServerTest(unittest.TestCase):
     def setUp(self):
         self.mail = []
         cfg = {"dashboard_password_hash": hash_password("first-pass", iterations=1000),
-               "public_url": "http://dash.local:8501", "listen_host": "127.0.0.1", "listen_port": 0}
+               "public_url": "http://dash.local:8501", "home_url": "http://home.local/",
+               "listen_host": "127.0.0.1", "listen_port": 0}
         self.app = App(cfg, FakeAlpaca(), lambda subj, body: self.mail.append(body), lambda: {"top": []},
                        scorecard_rows=lambda: [{"date": "2026-10-05", "equity": 102449.05, "spy": 769.31}],
                        timer=lambda: {"next": "Mon 2026-10-12 08:30:00 EDT", "last": "", "active": True})
@@ -115,6 +116,7 @@ class ServerTest(unittest.TestCase):
         self.req("/forgot", data=b"")
         self.req("/forgot", data=b"")  # rate-limited
         self.assertEqual(len(self.mail), 1)
+        self.assertIn("http://home.local/", self.mail[0])
         token = self.mail[0].split("reset?token=")[1].split('"')[0]
         status, h, _ = self.req("/reset", data=f"token={token}&password=brand-new-1&password2=brand-new-1".encode())
         self.assertEqual(h["Location"], "/login?reset=1")

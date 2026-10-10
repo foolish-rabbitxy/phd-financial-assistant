@@ -18,6 +18,8 @@ from src.strategy.portfolio import rebalance_alpaca_portfolio
 DB_PATH = "local_db/market_data.db"
 CASH_BUFFER = 0.98  # leave 2% cash so market orders don't fail on price moves
 REFRESH_STEPS = ["src.data.fundamentals_main", "src.data.collector_main", "src.data.news_main", "src.data.quality"]
+EMAIL_FOOTER = ('<p>Scorecard: <a href="http://192.168.50.62:8501/">http://192.168.50.62:8501</a><br>'
+                'All sites at home: <a href="http://192.168.50.62/">http://192.168.50.62</a></p>')
 DRIFT_BAND = 0.25  # only resize a held position once it is >25% away from its equal-weight target
 
 
@@ -93,7 +95,7 @@ def main(dry_run=False, skip_refresh=False, send_mail=False):
     if send_mail:
         from src.utils.mail import send_email
         try:
-            send_email("Autopilot weekly report (paper)", "<pre>" + report + "</pre>")
+            send_email("Autopilot weekly report (paper)", "<pre>" + report + "</pre>" + EMAIL_FOOTER)
         except Exception as e:
             print(f"Email failed: {e}")
 

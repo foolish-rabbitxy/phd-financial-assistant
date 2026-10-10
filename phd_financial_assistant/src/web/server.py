@@ -170,7 +170,8 @@ class App:
                 "Finance dashboard: reset your password",
                 "<p>Someone (hopefully you) asked to reset the finance dashboard password.</p>"
                 f'<p>Open this link from a device on your home network within 15 minutes:<br><a href="{link}">{link}</a></p>'
-                "<p>The link works once. If you didn't ask for this, ignore this email.</p>",
+                "<p>The link works once. If you didn't ask for this, ignore this email.</p>"
+                f'<p>All sites at home: <a href="{self.cfg.get("home_url", "")}">{self.cfg.get("home_url", "")}</a></p>',
             )
         except Exception:
             log.exception("reset email failed")
