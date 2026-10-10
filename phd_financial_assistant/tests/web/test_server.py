@@ -31,6 +31,14 @@ class FakeAlpaca:
     def spy_bars(self, start):
         return json.loads((FIX / "spy_bars.json").read_text())
 
+    def stock_bars(self, symbol, start):
+        bars = json.loads((FIX / "spy_bars.json").read_text())["bars"]
+        scale = {"GLD": 0.5, "SLV": 0.07}[symbol]  # any shape works; returns are what matter
+        return {"bars": [{**b, "c": b["c"] * scale} for b in bars]}
+
+    def crypto_bars(self, pair, start):
+        return {"bars": [{"t": "2025-06-10T00:00:00Z", "c": 110000.0}, {"t": "2026-10-09T00:00:00Z", "c": 83000.0}]}
+
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **kw):
@@ -90,6 +98,9 @@ class ServerTest(unittest.TestCase):
         three = json.loads(self.req("/api/chart?range=3m", cookie=c)[2])["series"]
         self.assertGreater(len(full), len(three))
         self.assertEqual(three[0]["bot"], three[0]["spy"])
+        for k in ("gold", "silver", "btc"):
+            self.assertEqual(full[0][k], full[0]["bot"])  # every line starts from the same money
+        self.assertAlmostEqual(full[-1]["btc"] / full[0]["btc"], 83000 / 110000, places=3)
         self.assertEqual(self.req("/api/chart?range=10y", cookie=c)[0], 400)
 
     def test_change_password_needs_csrf(self):

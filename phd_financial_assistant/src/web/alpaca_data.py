@@ -67,15 +67,31 @@ class Alpaca:
     def portfolio_history(self) -> dict:
         return self._get(f"{self.base}/v2/account/portfolio/history", period="all", timeframe="1D")
 
-    def spy_bars(self, start: str) -> dict:
-        """Daily SPY bars since `start`, dividend-adjusted, all pages."""
+    def stock_bars(self, symbol: str, start: str) -> dict:
+        """Daily bars for a stock/ETF since `start`, dividend-adjusted, all pages."""
         bars, token = [], None
         while True:
             params = {"timeframe": "1Day", "start": start, "limit": 10000, "adjustment": "all", "feed": "iex"}
             if token:
                 params["page_token"] = token
-            page = self._get(f"{DATA_URL}/v2/stocks/SPY/bars", **params)
+            page = self._get(f"{DATA_URL}/v2/stocks/{symbol}/bars", **params)
             bars += page.get("bars") or []
+            token = page.get("next_page_token")
+            if not token:
+                return {"bars": bars}
+
+    def spy_bars(self, start: str) -> dict:
+        return self.stock_bars("SPY", start)
+
+    def crypto_bars(self, pair: str, start: str) -> dict:
+        """Daily crypto bars (UTC days, 7 per week) in the same {"bars": [...]} shape as stocks."""
+        bars, token = [], None
+        while True:
+            params = {"symbols": pair, "timeframe": "1Day", "start": f"{start}T00:00:00Z", "limit": 10000}
+            if token:
+                params["page_token"] = token
+            page = self._get(f"{DATA_URL}/v1beta3/crypto/us/bars", **params)
+            bars += (page.get("bars") or {}).get(pair) or []
             token = page.get("next_page_token")
             if not token:
                 return {"bars": bars}

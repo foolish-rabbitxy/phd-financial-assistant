@@ -154,13 +154,44 @@ function niceScale(lo, hi) {
   return { lo: Math.floor(lo / step) * step, hi: Math.ceil(hi / step) * step, step };
 }
 
+// Lines on the comparison chart. Colors are validated as a set (light + dark, color-blind safe);
+// each line is also labeled at its end, so identity never rests on color alone.
+const LINES = [
+  { key: "bot", label: "Bot", cls: "l-bot", always: true },
+  { key: "spy", label: "S&P 500 ≈ FXAIX", cls: "l-spy" },
+  { key: "gold", label: "Gold", cls: "l-gold" },
+  { key: "silver", label: "Silver", cls: "l-silver" },
+  { key: "btc", label: "Bitcoin", cls: "l-btc" },
+];
+let shown = new Set(LINES.map((l) => l.key));
+try { const saved = JSON.parse(localStorage.getItem("chartLines")); if (Array.isArray(saved)) shown = new Set(["bot", ...saved]); } catch { /* defaults */ }
+
+function renderLegend(series) {
+  const box = $("legend-lines");
+  const first = series[0] || {}, last = series[series.length - 1] || {};
+  box.replaceChildren(...LINES.map((l) => {
+    const ret = first[l.key] && last[l.key] ? (last[l.key] / first[l.key] - 1) * 100 : null;
+    const b = el("button", { type: "button", class: `chip-toggle${shown.has(l.key) ? " on" : ""}`, "aria-pressed": String(shown.has(l.key)) });
+    b.append(el("i", { class: `swatch ${l.cls}` }), el("span", {}, l.label), el("span", { class: `chip-ret ${signClass(ret)}` }, fmt.pct(ret)));
+    if (l.always) b.disabled = true;
+    b.addEventListener("click", () => {
+      shown.has(l.key) ? shown.delete(l.key) : shown.add(l.key);
+      try { localStorage.setItem("chartLines", JSON.stringify([...shown])); } catch { /* per-viewer only */ }
+      renderLegend(series);
+      drawCompare(series);
+    });
+    return b;
+  }));
+}
+
 function drawCompare(series) {
   const fig = $("c-compare");
-  const W = Math.max(fig.clientWidth || 700, 300), H = 260, L = 70, R = 110, T = 10, B = 24;
+  const lines = LINES.filter((l) => shown.has(l.key));
+  const W = Math.max(fig.clientWidth || 700, 300), H = 280, L = 70, R = 120, T = 10, B = 24;
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Bot account value compared with the same money in the S&P 500");
+  svg.setAttribute("aria-label", "Bot account value compared with the same money in the S&P 500, gold, silver and bitcoin");
   const add = (tag, attrs, text) => {
     const e = document.createElementNS(SVG, tag);
     for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -170,7 +201,7 @@ function drawCompare(series) {
   };
   fig.replaceChildren(svg);
   if (series.length < 2) { add("text", { x: W / 2, y: H / 2, "text-anchor": "middle", class: "empty" }, "Not enough history yet"); return; }
-  const vals = series.flatMap((p) => [p.bot, p.spy]).filter((v) => v != null);
+  const vals = series.flatMap((p) => lines.map((l) => p[l.key])).filter((v) => v != null);
   const { lo, hi, step } = niceScale(Math.min(...vals), Math.max(...vals));
   const t = series.map((p) => new Date(`${p.date}T12:00:00`).getTime());
   const x = (i) => L + ((t[i] - t[0]) / (t[t.length - 1] - t[0] || 1)) * (W - L - R);
@@ -184,16 +215,25 @@ function drawCompare(series) {
     add("text", { x: x(i), y: H - 6, "text-anchor": k === 0 ? "start" : k === 3 ? "end" : "middle" },
       new Date(t[i]).toLocaleDateString([], { month: "short", year: "2-digit" }));
   }
-  const path = (key) => series.map((p, i) => (p[key] == null ? "" : `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`)).join("");
-  add("path", { d: path("spy"), class: "line l-spy" });
-  add("path", { d: path("bot"), class: "line l-bot" });
+  const path = (key) => {
+    let d = "", pen = false;
+    series.forEach((p, i) => {
+      if (p[key] == null) { pen = false; return; }
+      d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`;
+      pen = true;
+    });
+    return d;
+  };
+  // draw the bot last so it sits on top
+  [...lines].reverse().forEach((l) => add("path", { d: path(l.key), class: `line ${l.cls}` }));
   const last = series[series.length - 1];
-  const labels = [{ y: y(last.bot) + 4, t: "Bot", c: "lab-bot" }, { y: y(last.spy) + 4, t: "S&P 500 ≈ FXAIX", c: "lab-spy" }].sort((a, b) => a.y - b.y);
-  if (labels[1].y - labels[0].y < 13) labels[1].y = labels[0].y + 13;
-  labels.forEach((l) => add("text", { x: W - R + 6, y: l.y, class: `endlabel ${l.c}` }, l.t));
+  const labels = lines.filter((l) => last[l.key] != null)
+    .map((l) => ({ y: y(last[l.key]) + 4, t: l.label === "S&P 500 ≈ FXAIX" ? "S&P ≈ FXAIX" : l.label, c: `lab ${l.cls}` }))
+    .sort((a, b) => a.y - b.y);
+  labels.forEach((l, i) => { if (i && l.y - labels[i - 1].y < 13) l.y = labels[i - 1].y + 13; add("text", { x: W - R + 6, y: l.y, class: `endlabel ${l.c}` }, l.t); });
 
   const cross = add("line", { y1: T, y2: H - B, class: "cross", visibility: "hidden" });
-  const dots = ["l-bot", "l-spy"].map((c) => add("circle", { r: 4, class: `dot ${c}`, visibility: "hidden" }));
+  const dots = lines.map((l) => add("circle", { r: 4, class: `dot ${l.cls}`, visibility: "hidden" }));
   const hit = add("rect", { x: L, y: 0, width: W - L - R, height: H, fill: "transparent" });
   const tip = $("tooltip");
   hit.addEventListener("pointermove", (ev) => {
@@ -203,11 +243,17 @@ function drawCompare(series) {
     for (let j = 1; j < series.length; j++) if (Math.abs(x(j) - px) < Math.abs(x(i) - px)) i = j;
     const p = series[i];
     cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
-    [p.bot, p.spy].forEach((v, k) => { dots[k].setAttribute("cx", x(i)); dots[k].setAttribute("cy", y(v)); dots[k].setAttribute("visibility", "visible"); });
-    const gap = p.bot - p.spy;
-    const line = (cls, name, v) => { const d = el("div"); d.append(el("i", { class: cls }), `${name}: ${fmt.usd(v)}`); return d; };
-    tip.replaceChildren(el("div", { class: "t" }, fmt.date(p.date)), line("bg-bot", "Bot", p.bot), line("bg-spy", "S&P 500", p.spy),
-      el("div", { class: signClass(gap) }, `${gap >= 0 ? "Ahead" : "Behind"} by ${fmt.usd(Math.abs(gap), 0)}`));
+    lines.forEach((l, k) => {
+      const v = p[l.key];
+      dots[k].setAttribute("visibility", v == null ? "hidden" : "visible");
+      if (v != null) { dots[k].setAttribute("cx", x(i)); dots[k].setAttribute("cy", y(v)); }
+    });
+    const rows = lines.filter((l) => p[l.key] != null).sort((a, b) => p[b.key] - p[a.key]).map((l) => {
+      const d = el("div");
+      d.append(el("i", { class: `swatch ${l.cls}` }), `${l.label}: ${fmt.usd(p[l.key], 0)}`);
+      return d;
+    });
+    tip.replaceChildren(el("div", { class: "t" }, fmt.date(p.date)), ...rows);
     tip.classList.remove("hidden");
     tip.style.left = `${Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8)}px`;
     tip.style.top = `${ev.clientY + 14}px`;
@@ -219,7 +265,7 @@ let lastSeries = [];
 async function loadChart() {
   try {
     const r = await api(`/api/chart?range=${range}`);
-    if (r.ok) { lastSeries = r.series; drawCompare(lastSeries); }
+    if (r.ok) { lastSeries = r.series; renderLegend(lastSeries); drawCompare(lastSeries); }
   } catch { /* retried on next tick */ }
 }
 function markRange() { for (const b of $("range-seg").children) b.classList.toggle("on", b.dataset.range === range); }

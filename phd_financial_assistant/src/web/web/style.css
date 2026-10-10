@@ -280,7 +280,21 @@ h3 { font-size: 14px; margin: 0; }
 }
 
 /* ---------------------------------------------------------------- finance dashboard additions */
-:root { --bot: var(--s1); --spy: #8a8880; }
+:root { --bot: var(--s1); --spy: #8a8880; --gold: #eda100; --silver: #1baf7a; --btc: #4a3aa7; }
+@media (prefers-color-scheme: dark) { :root { --gold: #c98500; --silver: #199e70; --btc: #7445c8; } }
+.l-gold { stroke: var(--gold); fill: var(--gold); }
+.l-silver { stroke: var(--silver); fill: var(--silver); }
+.l-btc { stroke: var(--btc); fill: var(--btc); }
+.chart .line.l-gold, .chart .line.l-silver, .chart .line.l-btc { stroke-width: 1.75; }
+.lab.l-bot, .lab.l-spy, .lab.l-gold, .lab.l-silver, .lab.l-btc { stroke: none; font-weight: 600; }
+.swatch { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; background: currentColor; }
+.swatch.l-bot { background: var(--bot); } .swatch.l-spy { background: var(--spy); } .swatch.l-gold { background: var(--gold); }
+.swatch.l-silver { background: var(--silver); } .swatch.l-btc { background: var(--btc); }
+.legend-lines { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.chip-toggle { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: transparent; opacity: .5; }
+.chip-toggle.on { opacity: 1; background: var(--btn); }
+.chip-toggle:disabled { cursor: default; opacity: 1; }
+.chip-ret { margin-left: 6px; font-variant-numeric: tabular-nums; font-weight: 600; }
 .paper-tag { font-size: 12px; color: var(--muted); border: 1px dashed var(--border); border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
 .verdict-card { border-top: 4px solid var(--border); }
 .verdict-card[data-level="good"] { border-top-color: var(--good); }
@@ -300,7 +314,7 @@ h3 { font-size: 14px; margin: 0; }
 .down { color: var(--critical); }
 td.buy { color: var(--up); font-weight: 600; }
 td.sell { color: var(--critical); font-weight: 600; }
-.wide-chart svg { height: 260px; }
+.wide-chart svg { height: 280px; }
 .l-bot { stroke: var(--bot); fill: var(--bot); }
 .l-spy { stroke: var(--spy); fill: var(--spy); stroke-dasharray: 5 3; }
 .chart .line.l-bot { stroke-width: 2.5; }

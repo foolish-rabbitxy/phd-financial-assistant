@@ -35,14 +35,16 @@
 
     <section class="card">
       <div class="card-head">
-        <h2>Bot vs. the same money in the S&amp;P 500</h2>
+        <h2>Bot vs. the same money elsewhere</h2>
         <div class="seg" id="range-seg">
           <button data-range="3m">3M</button><button data-range="1y">1Y</button><button data-range="all" class="on">All</button>
         </div>
       </div>
+      <div class="legend-lines" id="legend-lines" aria-label="Show or hide lines"></div>
       <figure class="chart wide-chart" id="c-compare"></figure>
-      <p class="muted small">S&amp;P 500 line = the bot's starting value for the range, invested in SPY with dividends reinvested.
-        Your FXAIX tracks the same index (it costs 0.08% a year less), so it would sit on this line.</p>
+      <p class="muted small">Each line = the bot's starting value for the range, invested in that asset instead.
+        S&amp;P 500 = SPY with dividends reinvested (your FXAIX tracks the same index for 0.08% a year less).
+        Gold and silver = the GLD and SLV funds. Bitcoin = BTC/USD. Tap a name above the chart to show or hide it.</p>
     </section>
 
     <section class="tiles" aria-label="Account status">

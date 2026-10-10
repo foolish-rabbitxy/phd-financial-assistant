@@ -23,6 +23,8 @@ log = logging.getLogger(__name__)
 WEB = Path(__file__).parent / "web"
 PICKS_EVERY_S = 3600
 RANGES = {"3m": 92, "1y": 366, "all": None}
+# Extra lines on the comparison chart: name -> (kind, symbol). Gold and silver via their ETFs.
+EXTRAS = {"gold": ("stock", "GLD"), "silver": ("stock", "SLV"), "btc": ("crypto", "BTC/USD")}
 PUBLIC = {
     "/login": ("login.html", "text/html; charset=utf-8"),
     "/forgot": ("forgot.html", "text/html; charset=utf-8"),
@@ -69,6 +71,7 @@ class App:
         self.timer = TTLCache(timer, 300)
         self._spy = {}
         self.spy = TTLCache(self._load_spy, 900)
+        self.extras = TTLCache(self._load_extras, 900)
         self.picks_fn = picks_fn
         self.picks, self.picks_at, self.picks_error = None, 0.0, ""
 
@@ -82,6 +85,17 @@ class App:
             return []
         start = (datetime.fromisoformat(eq[0][0]) - timedelta(days=10)).strftime("%Y-%m-%d")
         return sc.parse_spy(self.alpaca.spy_bars(start))
+
+    def _load_extras(self) -> dict:
+        eq = self._equity()
+        if not eq:
+            return {}
+        start = (datetime.fromisoformat(eq[0][0]) - timedelta(days=10)).strftime("%Y-%m-%d")
+        out = {}
+        for name, (kind, sym) in EXTRAS.items():
+            bars = self.alpaca.crypto_bars(sym, start) if kind == "crypto" else self.alpaca.stock_bars(sym, start)
+            out[name] = sc.parse_spy(bars)
+        return out
 
     def refresh_picks_forever(self) -> None:
         while True:
@@ -125,7 +139,7 @@ class App:
         start = "0000"
         if days and eq:
             start = (datetime.fromisoformat(eq[-1][0]) - timedelta(days=days)).strftime("%Y-%m-%d")
-        return {"series": sc.same_money_series(eq, spy, start), "range": rng}
+        return {"series": sc.same_money_series(eq, spy, start, self.extras.get() or {}), "range": rng}
 
     # ---- passwords -------------------------------------------------------
     def _store_password(self, new: str, keep: str | None) -> None:

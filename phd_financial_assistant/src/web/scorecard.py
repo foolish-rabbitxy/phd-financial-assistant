@@ -59,14 +59,20 @@ def verdict(diff_pts: float) -> str:
     return "ahead" if diff_pts > 0 else "behind"
 
 
-def same_money_series(equity: list[tuple[str, float]], spy: list[tuple[str, float]], start: str) -> list[dict]:
-    """Daily bot equity next to what its starting value would be worth held in SPY."""
+def same_money_series(equity: list[tuple[str, float]], spy: list[tuple[str, float]], start: str,
+                      others: dict[str, list[tuple[str, float]]] | None = None) -> list[dict]:
+    """Daily bot equity next to what its starting value would be worth held in SPY (and in each
+    of `others`, e.g. gold, silver, bitcoin), on the bot's trading days."""
     eq = [(d, v) for d, v in equity if d >= start]
     if not eq:
         return []
-    s0 = value_on_or_before(spy, eq[0][0])
+    assets = {"spy": spy, **(others or {})}
+    base = {k: value_on_or_before(series, eq[0][0]) for k, series in assets.items()}
     out = []
     for d, v in eq:
-        s = value_on_or_before(spy, d)
-        out.append({"date": d, "bot": round(v, 2), "spy": round(eq[0][1] * s / s0, 2) if s and s0 else None})
+        point = {"date": d, "bot": round(v, 2)}
+        for k, series in assets.items():
+            x = value_on_or_before(series, d)
+            point[k] = round(eq[0][1] * x / base[k], 2) if x and base[k] else None
+        out.append(point)
     return out
