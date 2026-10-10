@@ -337,3 +337,11 @@ td.sell { color: var(--critical); font-weight: 600; }
   .pools td, .pools th { white-space: nowrap; overflow-wrap: normal; }
   .holdings td:last-child { min-width: 140px; }
 }
+
+/* Status tiles: 6 → 3 → 2 per row so rows stay full, and the big number shrinks a little on
+   narrower windows instead of spilling out of its box. */
+.tiles { grid-template-columns: repeat(6, 1fr); }
+.tile .value { font-size: clamp(20px, 1.2vw + 10px, 26px); }
+.tile .value.small-value { white-space: normal; overflow: visible; }
+@media (max-width: 1180px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 620px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
