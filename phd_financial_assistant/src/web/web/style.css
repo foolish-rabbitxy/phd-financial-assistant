@@ -345,3 +345,8 @@ td.sell { color: var(--critical); font-weight: 600; }
 .tile .value.small-value { white-space: normal; overflow: visible; }
 @media (max-width: 1180px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 620px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* link back to the home portal (port 80) */
+.home-link { font-size: 14px; color: var(--ink); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border);
+  border-radius: 8px; white-space: nowrap; }
+.home-link:hover, .home-link:focus-visible { border-color: var(--s1); }
