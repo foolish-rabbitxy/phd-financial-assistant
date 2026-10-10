@@ -183,7 +183,7 @@ function renderLegend(series) {
   const box = $("legend-lines");
   const first = series[0] || {}, last = series[series.length - 1] || {};
   box.replaceChildren(...LINES.map((l) => {
-    const ret = first[l.key] && last[l.key] ? (last[l.key] / first[l.key] - 1) * 100 : null;
+    const ret = series.length > 1 && first[l.key] && last[l.key] ? (last[l.key] / first[l.key] - 1) * 100 : null;
     const b = el("button", { type: "button", class: `chip-toggle${shown.has(l.key) ? " on" : ""}`, "aria-pressed": String(shown.has(l.key)) });
     b.append(el("i", { class: `swatch ${l.cls}` }), el("span", {}, l.label), el("span", { class: `chip-ret ${signClass(ret)}` }, fmt.pct(ret)));
     if (l.always) b.disabled = true;
