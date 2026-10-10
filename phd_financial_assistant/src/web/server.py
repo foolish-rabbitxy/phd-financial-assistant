@@ -32,6 +32,9 @@ PUBLIC = {
     "/style.css": ("style.css", "text/css"),
     "/login.js": ("login.js", "application/javascript"),
     "/reset.js": ("reset.js", "application/javascript"),
+    "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/favicon.ico": ("favicon.svg", "image/svg+xml"),
+    "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
 }
 PRIVATE = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "application/javascript")}
 SECURITY_HEADERS = {
