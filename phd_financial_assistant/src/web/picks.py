@@ -1,39 +1,37 @@
-"""Today's picks from the existing scoring engine, reshaped for the page (view-only)."""
+"""Today's picks from the multi-factor brain, reshaped for the page (view-only)."""
 
 from __future__ import annotations
 
-import html
-import re
+import math
 
-TOP_N = 10
-ALLOC_N = 5
-FIELDS = ("symbol", "sector", "industry", "score", "rf_score", "xgb_score", "pe_ratio",
-          "dividend_yield", "return_30d", "volatility_30d", "avg_sentiment", "market_cap")
+TOP_TABLE = 25
 
 
-def summary_from_explanation(expl_html: str) -> str:
-    """engine.generate_explanation returns HTML; keep just the plain-text 'Summary:' sentence."""
-    text = html.unescape(re.sub(r"<[^>]+>", " ", expl_html))
-    text = re.sub(r"\s+", " ", text).strip()
-    m = re.search(r"Summary:\s*(.+)$", text)
-    return m.group(1).strip() if m else text
+def _num(v):
+    return None if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
-def shape(ranked: list[dict], portfolio: list[dict], explain) -> dict:
-    total = sum(p["allocation"] for p in portfolio) or 1.0
+def shape(scored, picks: list[str], current: set[str], reasons) -> dict:
+    rows = []
+    for rank, (sym, r) in enumerate(scored.head(TOP_TABLE).iterrows(), 1):
+        rows.append({
+            "rank": rank, "symbol": sym, "sector": r.get("sector"), "score": _num(r.get("score")),
+            "mom_12_1": _num(r.get("mom_12_1")), "mom_6_1": _num(r.get("mom_6_1")),
+            "vol_1y": _num(r.get("vol_1y")), "pe_ratio": _num(r.get("pe_ratio")),
+            "dividend_yield": _num(r.get("dividend_yield")), "roe": _num(r.get("roe")),
+            "picked": sym in picks, "held": sym in current,
+        })
+    weight = round(100 / len(picks), 1) if picks else 0
     return {
-        "count": len(ranked),
-        "top": [{k: s.get(k) for k in FIELDS} for s in ranked[:TOP_N]],
-        "allocation": [
-            {"symbol": p["symbol"], "weight_pct": round(p["allocation"] / total * 100, 1),
-             "why": summary_from_explanation(explain(p))}
-            for p in portfolio[:ALLOC_N]
-        ],
+        "count": len(scored),
+        "top": rows,
+        "allocation": [{"symbol": s, "weight_pct": weight, "why": reasons(scored.loc[s]),
+                        "sector": scored.loc[s].get("sector"), "held": s in current} for s in picks],
     }
 
 
-def compute() -> dict:
-    from src.strategy.engine import (allocate_portfolio, enrich_sentiment, filter_and_score,
-                                     generate_explanation, load_candidates)
-    ranked = filter_and_score(enrich_sentiment(load_candidates(symbols=None)))
-    return shape(ranked, allocate_portfolio(ranked, budget=100.0), generate_explanation)
+def compute(current_fn=None) -> dict:
+    from src.strategy import live_picks, multifactor
+    current = set(current_fn()) if current_fn else set()
+    scored, picks = live_picks.run(current)
+    return shape(scored, picks, current, multifactor.reasons)

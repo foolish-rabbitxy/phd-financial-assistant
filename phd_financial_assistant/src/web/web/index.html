@@ -41,7 +41,8 @@
         </div>
       </div>
       <figure class="chart wide-chart" id="c-compare"></figure>
-      <p class="muted small">S&amp;P 500 line = the bot's starting value for the range, invested in SPY with dividends reinvested.</p>
+      <p class="muted small">S&amp;P 500 line = the bot's starting value for the range, invested in SPY with dividends reinvested.
+        Your FXAIX tracks the same index (it costs 0.08% a year less), so it would sit on this line.</p>
     </section>
 
     <section class="tiles" aria-label="Account status">
@@ -75,11 +76,13 @@
         <h2>Today's picks</h2>
         <span class="muted small" id="picks-meta"></span>
       </div>
-      <h3 class="mh-sub">Next Monday's target (if picks don't change)</h3>
+      <h3 class="mh-sub">Next Monday's target: 15 stocks, equal weight, ≤ 3 per sector</h3>
       <div id="alloc" class="alloc"></div>
-      <h3 class="mh-sub">Top 10 by model score</h3>
+      <h3 class="mh-sub">Top 25 by score <span class="muted small">· ✓ = in Monday's target · ● = held now</span></h3>
       <table class="pools" id="picks"></table>
-      <p class="muted small">View-only. Only the Monday autopilot trades, so the scorecard measures the bot alone.</p>
+      <p class="muted small">Score = 35% 12-month momentum · 15% 6-month momentum · 15% low volatility · 15% quality (ROE, margin, debt) ·
+        10% value (earnings yield) · 5% dividend · 5% news sentiment. Only profitable stocks in an uptrend qualify.
+        View-only: the Monday autopilot is the only trader, so the scorecard measures the bot alone.</p>
     </section>
 
     <section class="card">

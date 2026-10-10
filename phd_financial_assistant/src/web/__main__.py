@@ -52,7 +52,9 @@ def run() -> None:
     from . import picks
     from .alpaca_data import Alpaca
     from .server import App, serve
-    serve(App(cfg, Alpaca(), send_email, picks.compute, save_config=save_config))
+    alpaca = Alpaca()
+    held = lambda: [p["symbol"] for p in alpaca.positions()]
+    serve(App(cfg, alpaca, send_email, lambda: picks.compute(held), save_config=save_config))
 
 
 def main() -> None:

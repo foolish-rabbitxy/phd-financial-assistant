@@ -156,7 +156,7 @@ function niceScale(lo, hi) {
 
 function drawCompare(series) {
   const fig = $("c-compare");
-  const W = Math.max(fig.clientWidth || 700, 300), H = 260, L = 70, R = 80, T = 10, B = 24;
+  const W = Math.max(fig.clientWidth || 700, 300), H = 260, L = 70, R = 110, T = 10, B = 24;
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("role", "img");
@@ -188,7 +188,7 @@ function drawCompare(series) {
   add("path", { d: path("spy"), class: "line l-spy" });
   add("path", { d: path("bot"), class: "line l-bot" });
   const last = series[series.length - 1];
-  const labels = [{ y: y(last.bot) + 4, t: "Bot", c: "lab-bot" }, { y: y(last.spy) + 4, t: "S&P 500", c: "lab-spy" }].sort((a, b) => a.y - b.y);
+  const labels = [{ y: y(last.bot) + 4, t: "Bot", c: "lab-bot" }, { y: y(last.spy) + 4, t: "S&P 500 ≈ FXAIX", c: "lab-spy" }].sort((a, b) => a.y - b.y);
   if (labels[1].y - labels[0].y < 13) labels[1].y = labels[0].y + 13;
   labels.forEach((l) => add("text", { x: W - R + 6, y: l.y, class: `endlabel ${l.c}` }, l.t));
 
@@ -240,22 +240,21 @@ async function loadPicks() {
   try { r = await api("/api/picks"); } catch { return; }
   const p = r.picks;
   if (!p) { $("picks-meta").textContent = r.error || "Scoring today's stocks… (about 10 seconds)"; setTimeout(loadPicks, 5000); return; }
-  $("picks-meta").textContent = `${p.count} stocks passed the filters · scored ${new Date(r.computed_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  $("picks-meta").textContent = `${p.count} stocks qualify today · scored ${new Date(r.computed_at * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
   $("alloc").replaceChildren(...p.allocation.map((a) => {
     const d = el("div", { class: "alloc-row" });
-    const bar = el("span", { class: "weight" });
-    const fill = el("span");
-    fill.style.width = `${a.weight_pct}%`;
-    bar.append(fill);
     const head = el("div", { class: "alloc-head" });
-    head.append(el("strong", {}, a.symbol), bar, el("span", {}, `${fmt.num(a.weight_pct, 1)}%`));
+    head.append(el("strong", {}, a.symbol), el("span", { class: "muted small" }, a.sector || ""),
+      el("span", { class: `small ${a.held ? "" : "up"}` }, a.held ? "● held" : "new"));
     d.append(head, el("p", { class: "muted small" }, a.why));
     return d;
   }));
-  table("picks", ["#", "Stock", "Sector", "Score", "P/E", "Dividend", "30-day return", "Volatility"],
-    p.top.map((s, i) => row([String(i + 1), s.symbol, s.sector || "–", fmt.num(s.score, 3), fmt.num(s.pe_ratio, 1),
-      s.dividend_yield != null ? `${fmt.num(s.dividend_yield, 2)}%` : "–", [fmt.pct(s.return_30d), signClass(s.return_30d)],
-      s.volatility_30d != null ? `${fmt.num(s.volatility_30d, 2)}%` : "–"])));
+  const pct = (v, d = 0) => (v == null ? "–" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt.num(Math.abs(v * 100), d)}%`);
+  table("picks", ["#", "Stock", "", "Sector", "Score", "12-mo mom.", "6-mo mom.", "Volatility", "P/E", "Dividend", "ROE"],
+    p.top.map((s) => row([String(s.rank), s.symbol, `${s.picked ? "✓" : ""}${s.held ? " ●" : ""}`, s.sector || "–",
+      fmt.num(s.score, 3), [pct(s.mom_12_1), signClass(s.mom_12_1)], [pct(s.mom_6_1), signClass(s.mom_6_1)],
+      s.vol_1y != null ? `${fmt.num(s.vol_1y * 100, 2)}%/day` : "–", fmt.num(s.pe_ratio, 1),
+      s.dividend_yield != null ? `${fmt.num(s.dividend_yield, 2)}%` : "–", pct(s.roe)])));
 }
 
 // ---------------------------------------------------------------- settings
