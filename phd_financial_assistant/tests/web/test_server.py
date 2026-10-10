@@ -93,6 +93,11 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(d["positions"][0]["symbol"], "LYB")
         self.assertEqual(len(d["csrf"]), 64)
 
+    def test_internal_glance(self):
+        status, _, body = self.req("/internal/glance")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["verdict"], "behind")
+
     def test_chart_ranges(self):
         c = self.login()
         full = json.loads(self.req("/api/chart?range=all", cookie=c)[2])["series"]

@@ -128,6 +128,14 @@ class App:
             "errors": errors, "as_of": eq[-1][0] if eq else None,
         }
 
+    def glance(self) -> dict:
+        """Tiny summary for the home portal (served to this PC only)."""
+        d = self.summary()
+        w = d["windows"]["since_open"] or {}
+        return {"verdict": w.get("verdict"), "diff_pts": w.get("diff_pts"), "bot_pct": w.get("bot_pct"),
+                "spy_pct": w.get("spy_pct"), "equity": (d["account"] or {}).get("equity"),
+                "next_run": (d["timer"] or {}).get("next")}
+
     @staticmethod
     def _weekly_vs_spy(rows: list[dict]) -> list[dict]:
         if not rows:
@@ -225,6 +233,10 @@ def make_handler(app: App):
 
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path == "/internal/glance":
+                if self.client_address[0] not in ("127.0.0.1", "::1"):
+                    return self._send(404, b"not found", "text/plain")
+                return self._json(app.glance())
             if url.path in PUBLIC:
                 return self._file(*PUBLIC[url.path])
             sess = self._session()
