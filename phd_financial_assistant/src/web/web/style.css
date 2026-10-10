@@ -350,3 +350,5 @@ td.sell { color: var(--critical); font-weight: 600; }
 .home-link { font-size: 14px; color: var(--ink); text-decoration: none; padding: 6px 12px; border: 1px solid var(--border);
   border-radius: 8px; white-space: nowrap; }
 .home-link:hover, .home-link:focus-visible { border-color: var(--s1); }
+
+.windows.one { grid-template-columns: 1fr; max-width: 640px; }

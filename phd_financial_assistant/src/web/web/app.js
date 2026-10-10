@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
 let csrf = "";
-let range = ["3m", "1y", "all"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "all";
+let range = ["new", "3m", "1y", "all"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "new";
 
 const fmt = {
   num: (v, d = 0) => (v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d })),
@@ -63,7 +63,12 @@ function renderWindow(box, title, w) {
 }
 
 function renderScorecard(d) {
-  const w = d.windows.since_open;
+  const w = d.windows.new_brain;
+  const o = d.windows.old_brain;
+  $("old-brain").textContent = o
+    ? `For the record: the old brain (Jun 2025 – Oct 9, 2026) made ${fmt.pct(o.bot_pct)} while the S&P 500 made ${fmt.pct(o.spy_pct)} — ` +
+      `${fmt.num(Math.abs(o.diff_pts), 1)} pts ${o.verdict}. The scorecard restarted when the new brain took over.`
+    : "";
   const badge = $("verdict-badge"), pill = $("verdict-pill"), card = $("verdict-card");
   if (w) {
     const [level, word] = VERDICT[w.verdict];
@@ -71,13 +76,21 @@ function renderScorecard(d) {
     badge.textContent = word;
     card.dataset.level = level;
     $("verdict-text").textContent = w.verdict === "even"
-      ? "The bot is keeping pace with the S&P 500"
-      : `The bot is ${w.verdict} the S&P 500 by ${fmt.num(Math.abs(w.diff_pts), 1)} percentage points`;
+      ? "The new brain is keeping pace with the S&P 500"
+      : `The new brain is ${w.verdict} the S&P 500 by ${fmt.num(Math.abs(w.diff_pts), 1)} percentage points`;
     pill.className = `pill ${level === "neutral" ? "" : level}`;
     pill.textContent = `${word} ${fmt.num(Math.abs(w.diff_pts), 1)} pts`;
   }
-  renderWindow($("w-open"), "Since the account opened", w);
-  renderWindow($("w-auto"), "Since the autopilot started", d.windows.since_autopilot);
+  if (!w) {
+    badge.className = "badge neutral"; badge.textContent = "Starting";
+    card.dataset.level = "neutral";
+    $("verdict-text").textContent = "Fresh start: the new brain's scorecard begins with Monday's 8:30 AM run";
+    pill.className = "pill"; pill.textContent = "New brain starts Mon";
+    $("w-new").replaceChildren(el("div", { class: "label" }, "Since the new brain took over · Oct 12, 2026"),
+      el("p", { class: "muted" }, "First result after Monday's market close. Both the bot and the S&P 500 start from the account's value at Friday's close."));
+    return;
+  }
+  renderWindow($("w-new"), "Since the new brain took over", w);
 }
 
 // ---------------------------------------------------------------- tiles & tables

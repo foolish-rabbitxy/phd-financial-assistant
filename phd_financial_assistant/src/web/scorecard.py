@@ -34,9 +34,10 @@ def value_on_or_before(series: list[tuple[str, float]], date: str) -> float | No
     return series[i][1] if i >= 0 else None
 
 
-def window(equity: list[tuple[str, float]], spy: list[tuple[str, float]], start: str) -> dict | None:
-    """Returns since `start` (first equity day on/after it) for the bot and for SPY."""
-    eq = [(d, v) for d, v in equity if d >= start]
+def window(equity: list[tuple[str, float]], spy: list[tuple[str, float]], start: str,
+           end: str = "9999") -> dict | None:
+    """Returns from `start` to `end` (first/last equity day inside them) for the bot and for SPY."""
+    eq = [(d, v) for d, v in equity if start <= d <= end]
     if len(eq) < 2:
         return None
     (d0, e0), (d1, e1) = eq[0], eq[-1]

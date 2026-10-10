@@ -85,10 +85,12 @@ class ServerTest(unittest.TestCase):
     def test_summary_scorecard(self):
         c = self.login()
         d = json.loads(self.req("/api/summary", cookie=c)[2])
-        w = d["windows"]["since_open"]
-        self.assertEqual(w["verdict"], "behind")
-        self.assertLess(w["diff_pts"], -20)
-        self.assertEqual(d["autopilot_start"], "2026-10-05")
+        old = d["windows"]["old_brain"]
+        self.assertEqual(old["verdict"], "behind")
+        self.assertLess(old["diff_pts"], -20)
+        self.assertEqual(old["end"], "2026-10-09")
+        self.assertIsNone(d["windows"]["new_brain"])  # recorded history ends at the new brain's baseline
+        self.assertEqual(d["new_brain_first_run"], "2026-10-12")
         self.assertEqual(d["weekly"][0]["bot_pct"], 0.0)
         self.assertEqual(d["positions"][0]["symbol"], "LYB")
         self.assertEqual(len(d["csrf"]), 64)
@@ -96,12 +98,16 @@ class ServerTest(unittest.TestCase):
     def test_internal_glance(self):
         status, _, body = self.req("/internal/glance")
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body)["verdict"], "behind")
+        g = json.loads(body)
+        self.assertIsNone(g["verdict"])  # no new-brain result until after Monday's close
+        self.assertEqual(g["since"], "2026-10-12")
 
     def test_chart_ranges(self):
         c = self.login()
         full = json.loads(self.req("/api/chart?range=all", cookie=c)[2])["series"]
         three = json.loads(self.req("/api/chart?range=3m", cookie=c)[2])["series"]
+        new = json.loads(self.req("/api/chart?range=new", cookie=c)[2])["series"]
+        self.assertEqual(new[0]["date"], "2026-10-09")
         self.assertGreater(len(full), len(three))
         self.assertEqual(three[0]["bot"], three[0]["spy"])
         for k in ("gold", "silver", "btc"):

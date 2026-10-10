@@ -31,6 +31,12 @@ class ScorecardTest(unittest.TestCase):
         self.assertEqual(w["start"], "2026-10-05")
         self.assertLess(abs(w["bot_pct"]), 5)
 
+    def test_window_with_end(self):
+        w = sc.window(self.eq, self.spy, "0000", "2026-10-09")
+        self.assertEqual((w["start"], w["end"]), ("2025-06-18", "2026-10-09"))
+        mid = sc.window(self.eq, self.spy, "0000", "2025-12-31")
+        self.assertLessEqual(mid["end"], "2025-12-31")
+
     def test_same_money_series_starts_equal(self):
         s = sc.same_money_series(self.eq, self.spy, "0000")
         self.assertEqual(s[0]["bot"], s[0]["spy"])

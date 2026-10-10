@@ -30,17 +30,17 @@
         <span class="badge" id="verdict-badge"></span>
         <h2 id="verdict-text">Loading the scorecard…</h2>
       </div>
-      <div class="windows">
-        <div class="window" id="w-open"></div>
-        <div class="window" id="w-auto"></div>
+      <div class="windows one">
+        <div class="window" id="w-new"></div>
       </div>
+      <p class="muted small" id="old-brain"></p>
     </section>
 
     <section class="card">
       <div class="card-head">
         <h2>Bot vs. the same money elsewhere</h2>
         <div class="seg" id="range-seg">
-          <button data-range="3m">3M</button><button data-range="1y">1Y</button><button data-range="all" class="on">All</button>
+          <button data-range="new" class="on">New brain</button><button data-range="3m">3M</button><button data-range="1y">1Y</button><button data-range="all">All</button>
         </div>
       </div>
       <div class="legend-lines" id="legend-lines" aria-label="Show or hide lines"></div>
@@ -67,7 +67,7 @@
     <section class="two-col">
       <div class="card">
         <h2>Weekly scorecard</h2>
-        <p class="muted small">One row per Monday autopilot run, measured from its first run.</p>
+        <p class="muted small">One row per Monday autopilot run of the new brain, measured from its first run (Oct 12).</p>
         <table class="pools" id="weekly"></table>
       </div>
       <div class="card">

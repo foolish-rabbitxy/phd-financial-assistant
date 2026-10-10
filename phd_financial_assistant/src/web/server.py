@@ -22,7 +22,11 @@ log = logging.getLogger(__name__)
 
 WEB = Path(__file__).parent / "web"
 PICKS_EVERY_S = 3600
-RANGES = {"3m": 92, "1y": 366, "all": None}
+RANGES = {"new": "brain", "3m": 92, "1y": 366, "all": None}
+# The multi-factor brain took over at the Monday 2026-10-12 08:30 run; its baseline is the account
+# value at the previous close (Fri 2026-10-09), so Monday's trades and moves count toward it.
+NEW_BRAIN_BASE = "2026-10-09"
+NEW_BRAIN_FIRST_RUN = "2026-10-12"
 # Extra lines on the comparison chart: name -> (kind, symbol). Gold and silver via their ETFs.
 EXTRAS = {"gold": ("stock", "GLD"), "silver": ("stock", "SLV"), "btc": ("crypto", "BTC/USD")}
 PUBLIC = {
@@ -113,17 +117,16 @@ class App:
     def summary(self) -> dict:
         eq, spy = self._equity(), self.spy.get() or []
         weekly = self.weekly.get() or []
-        auto_start = weekly[0]["date"] if weekly else None
         windows = {
-            "since_open": sc.window(eq, spy, "0000"),
-            "since_autopilot": sc.window(eq, spy, auto_start) if auto_start else None,
+            "new_brain": sc.window(eq, spy, NEW_BRAIN_BASE),
+            "old_brain": sc.window(eq, spy, "0000", NEW_BRAIN_BASE),
         }
         acct = self.account.get() or {}
         positions = self.positions.get() or []
         errors = [c.error for c in (self.account, self.positions, self.fills, self.history, self.spy) if c.error]
         return {
             "account": acct, "positions": positions, "trades": self.fills.get() or [],
-            "windows": windows, "autopilot_start": auto_start,
+            "windows": windows, "new_brain_base": NEW_BRAIN_BASE, "new_brain_first_run": NEW_BRAIN_FIRST_RUN,
             "weekly": self._weekly_vs_spy(weekly), "timer": self.timer.get() or {},
             "errors": errors, "as_of": eq[-1][0] if eq else None,
         }
@@ -131,9 +134,9 @@ class App:
     def glance(self) -> dict:
         """Tiny summary for the home portal (served to this PC only)."""
         d = self.summary()
-        w = d["windows"]["since_open"] or {}
+        w = d["windows"]["new_brain"] or {}
         return {"verdict": w.get("verdict"), "diff_pts": w.get("diff_pts"), "bot_pct": w.get("bot_pct"),
-                "spy_pct": w.get("spy_pct"), "equity": (d["account"] or {}).get("equity"),
+                "spy_pct": w.get("spy_pct"), "since": NEW_BRAIN_FIRST_RUN, "equity": (d["account"] or {}).get("equity"),
                 "next_run": (d["timer"] or {}).get("next")}
 
     @staticmethod
@@ -148,7 +151,9 @@ class App:
         eq, spy = self._equity(), self.spy.get() or []
         days = RANGES[rng]
         start = "0000"
-        if days and eq:
+        if days == "brain":
+            start = NEW_BRAIN_BASE
+        elif days and eq:
             start = (datetime.fromisoformat(eq[-1][0]) - timedelta(days=days)).strftime("%Y-%m-%d")
         return {"series": sc.same_money_series(eq, spy, start, self.extras.get() or {}), "range": rng}
 
