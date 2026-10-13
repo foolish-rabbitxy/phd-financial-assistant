@@ -352,3 +352,6 @@ td.sell { color: var(--critical); font-weight: 600; }
 .home-link:hover, .home-link:focus-visible { border-color: var(--s1); }
 
 .windows.one { grid-template-columns: 1fr; max-width: 640px; }
+
+/* behind the home portal: its login covers this app, so hide our own sign-out and password form */
+body.portal [data-standalone] { display: none !important; }

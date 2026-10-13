@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import logging
 import subprocess
 import threading
@@ -12,6 +13,7 @@ from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, quote, urlparse
 
 from . import scorecard as sc
@@ -200,6 +202,10 @@ class App:
 
 
 def make_handler(app: App):
+    # Behind the home portal every request has already passed the portal's login, and we listen on this
+    # PC only, so there is one standing session (its CSRF token still guards actions).
+    portal = SimpleNamespace(csrf=secrets.token_urlsafe(24)) if app.cfg.get("behind_portal") else None
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "FinanceDashboard"
 
@@ -211,7 +217,7 @@ def make_handler(app: App):
             return c["fsession"].value if "fsession" in c else None
 
         def _session(self):
-            return app.sessions.get(self._token(), time.time())
+            return portal or app.sessions.get(self._token(), time.time())
 
         def _send(self, code, body: bytes, ctype, extra=None):
             self.send_response(code)
@@ -250,7 +256,7 @@ def make_handler(app: App):
             if url.path in PRIVATE:
                 return self._file(*PRIVATE[url.path])
             if url.path == "/api/summary":
-                return self._json({**app.summary(), "csrf": sess.csrf})
+                return self._json({**app.summary(), "csrf": sess.csrf, "portal": bool(portal)})
             if url.path == "/api/chart":
                 rng = parse_qs(url.query).get("range", ["all"])[0]
                 return self._json(app.chart(rng)) if rng in RANGES else self._json({"error": "bad range"}, 400)
@@ -298,6 +304,7 @@ def make_handler(app: App):
 
 def serve(app: App) -> None:
     threading.Thread(target=app.refresh_picks_forever, name="picks", daemon=True).start()
-    httpd = ThreadingHTTPServer((app.cfg["listen_host"], app.cfg["listen_port"]), make_handler(app))
-    log.info("listening on %s:%s", app.cfg["listen_host"], app.cfg["listen_port"])
+    host = "127.0.0.1" if app.cfg.get("behind_portal") else app.cfg["listen_host"]
+    httpd = ThreadingHTTPServer((host, app.cfg["listen_port"]), make_handler(app))
+    log.info("listening on %s:%s%s", host, app.cfg["listen_port"], " (behind the home portal)" if app.cfg.get("behind_portal") else "")
     httpd.serve_forever()

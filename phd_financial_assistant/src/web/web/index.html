@@ -4,9 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bot Scorecard</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="/nav.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -16,9 +17,9 @@
       <span class="paper-tag">Paper account · no real money</span>
     </div>
     <div class="topbar-right">
-      <a class="home-link" href="http://192.168.50.62/" title="All sites at home">🏠 Home</a>
+      <a class="home-link" href="http://192.168.50.62/" title="All sites at home" data-standalone>🏠 Home</a>
       <span id="updated" class="muted"></span>
-      <form method="post" action="/logout"><button class="ghost" type="submit">Sign out</button></form>
+      <form method="post" action="logout" data-standalone><button class="ghost" type="submit">Sign out</button></form>
     </div>
   </header>
 
@@ -92,7 +93,7 @@
 
     <section class="card">
       <h2>Settings</h2>
-      <form id="pw-form" class="settings-form">
+      <form id="pw-form" class="settings-form" data-standalone>
         <h3>Dashboard password</h3>
         <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
         <label>New password <input type="password" name="new" autocomplete="new-password" minlength="8" required></label>
@@ -104,6 +105,6 @@
   </main>
 
   <div id="tooltip" class="tooltip hidden" role="status"></div>
-  <script src="/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

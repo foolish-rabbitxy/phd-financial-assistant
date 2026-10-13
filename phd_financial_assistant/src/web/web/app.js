@@ -20,8 +20,8 @@ function el(tag, attrs = {}, text) {
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf, ...(opts.headers || {}) } });
-  if (res.status === 401) { location.href = "/login"; throw new Error("login required"); }
+  const res = await fetch(path.replace(/^\//, ""), { ...opts, headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf, ...(opts.headers || {}) } });
+  if (res.status === 401) { location.href = "login"; throw new Error("login required"); }
   const body = await res.json().catch(() => ({}));
   return { ok: res.ok, ...body };
 }
@@ -149,6 +149,7 @@ async function refresh() {
   let d;
   try { d = await api("/api/summary"); } catch { return; }
   csrf = d.csrf;
+  document.body.classList.toggle("portal", !!d.portal);  // signed in through the home portal
   $("updated").textContent = d.as_of ? `Data through ${fmt.date(d.as_of)}` : "";
   const errs = $("errors");
   errs.textContent = d.errors.length ? `Some data couldn't be refreshed: ${d.errors.join(" · ")}` : "";

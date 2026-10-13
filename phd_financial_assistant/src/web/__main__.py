@@ -12,9 +12,9 @@ from pathlib import Path
 from .auth import hash_password, password_problem
 
 CONFIG_PATH = Path.home() / ".config" / "finance-dashboard" / "config.json"
-DEFAULTS = {"dashboard_password_hash": "", "public_url": "http://192.168.50.62:8501",
+DEFAULTS = {"dashboard_password_hash": "", "public_url": "http://192.168.50.62/bot/",
             "home_url": "http://192.168.50.62/",
-            "listen_host": "0.0.0.0", "listen_port": 8501}
+            "listen_host": "0.0.0.0", "listen_port": 8501, "behind_portal": False}
 
 
 def load_config() -> dict:

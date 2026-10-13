@@ -136,3 +136,30 @@ class ServerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BehindPortalTest(unittest.TestCase):
+    """Behind the home portal the app trusts the portal's login: no cookie needed, actions still need the CSRF token."""
+
+    def setUp(self):
+        ServerTest.setUp(self)  # same app and fakes, then restart the server in portal mode
+        self.httpd.shutdown()
+        self.app.cfg["behind_portal"] = True
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.app))
+        self.base = f"http://127.0.0.1:{self.httpd.server_port}"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def test_summary_without_login_reports_portal(self):
+        with urllib.request.urlopen(self.base + "/api/summary") as r:
+            d = json.loads(r.read())
+        self.assertTrue(d["portal"])
+        self.assertTrue(d["csrf"])
+
+    def test_post_still_needs_csrf(self):
+        req = urllib.request.Request(self.base + "/api/password", data=b"{}", method="POST")
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req)
+        self.assertEqual(e.exception.code, 403)
+
+    def tearDown(self):
+        self.httpd.shutdown()
